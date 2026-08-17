@@ -18,10 +18,16 @@ final class CodexMeterUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["Mode"].exists)
         XCTAssertTrue(app.buttons["Leave Demo"].exists)
-        for _ in 0..<6 where !app.buttons["Send test notification"].exists {
+        // Assert in scroll order: "System permission" sits above "Send test
+        // notification" in the Notifications section, and scrolling straight to
+        // the button can cull the earlier row out of the lazy Form hierarchy.
+        for _ in 0..<6 where !app.staticTexts["System permission"].exists {
             app.swipeUp()
         }
         XCTAssertTrue(app.staticTexts["System permission"].waitForExistence(timeout: 3))
+        for _ in 0..<6 where !app.buttons["Send test notification"].exists {
+            app.swipeUp()
+        }
         XCTAssertTrue(app.buttons["Send test notification"].waitForExistence(timeout: 3))
     }
 
@@ -67,9 +73,7 @@ final class CodexMeterUITests: XCTestCase {
     func testResetRequiresIrreversibleConfirmation() throws {
         let app = launchDemo()
 
-        for _ in 0..<4 where !app.buttons["Use 1 reset"].exists {
-            app.swipeUp()
-        }
+        scrollDashboard(untilHittable: app.buttons["Use 1 reset"], in: app)
         XCTAssertTrue(app.buttons["Use 1 reset"].waitForExistence(timeout: 5))
         app.buttons["Use 1 reset"].tap()
         XCTAssertTrue(app.navigationBars["Codex reset"].waitForExistence(timeout: 3))
@@ -111,5 +115,24 @@ final class CodexMeterUITests: XCTestCase {
         app.launchArguments = ["-ui-testing-demo", "-ui-testing-reset-settings"]
         app.launch()
         return app
+    }
+
+    /// Scrolls the dashboard with short drags from alternating anchor points.
+    /// The usage-history chart scrubs via DragGesture(minimumDistance: 0), so
+    /// it swallows any scroll gesture that starts inside its plot area. The two
+    /// anchors are farther apart than the plot is tall, so the chart can never
+    /// capture two consecutive attempts and scrolling always makes progress.
+    private func scrollDashboard(
+        untilHittable element: XCUIElement,
+        in app: XCUIApplication,
+        maxAttempts: Int = 10
+    ) {
+        let anchors: [CGFloat] = [0.85, 0.45]
+        for attempt in 0..<maxAttempts where !element.isHittable {
+            let dy = anchors[attempt % anchors.count]
+            let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: dy))
+            let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: dy - 0.35))
+            start.press(forDuration: 0.05, thenDragTo: end)
+        }
     }
 }
