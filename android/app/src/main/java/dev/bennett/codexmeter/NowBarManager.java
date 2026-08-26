@@ -449,7 +449,6 @@ public final class NowBarManager {
                 context, snapshot, progressWindow, now);
         boolean accelerated = !preview && pace.accelerated;
         int remaining = progressWindow == null ? 0 : progressWindow.remainingPercent();
-        int used = progressWindow == null ? 0 : progressWindow.usedPercent;
         boolean weeklyFocus = NowBarPercentMode.isWeeklyFocus(focus);
         // Preview snapshots invent their own windows without a remote observation time;
         // live monitors must use fetchedAt so reset_after_seconds stays anchored.
@@ -495,9 +494,14 @@ public final class NowBarManager {
         if (!preview) {
             builder.addAction(new Notification.Action.Builder(
                     refreshActionIcon, "Refresh", refreshIntent).build());
+            String reminderMetric = weeklyFocus
+                    ? (longIsMonthly ? "monthly" : "weekly") : "five_hour";
+            Notification.Action reminderAction = NowBarResetReminder.buildAction(
+                    context, reminderMetric, progressWindow, observedAt);
+            if (reminderAction != null) builder.addAction(reminderAction);
         }
         if (NowBarDisplayMode.SAMSUNG_COMPATIBILITY.equals(displayMode)) {
-            applySamsungCompatibility(context, builder, fiveHour, weekly, longLabel, used,
+            applySamsungCompatibility(context, builder, fiveHour, weekly, longLabel, remaining,
                     progressWindow, weeklyFocus, until, now, observedAt, preview,
                     accelerated, estimate);
         } else {
@@ -505,7 +509,7 @@ public final class NowBarManager {
             promotionExtras.putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true);
             builder.addExtras(promotionExtras);
             if (Build.VERSION.SDK_INT >= 36) {
-                Api36.applyLiveUpdateStyle(context, builder, used, focusCritical, accelerated);
+                Api36.applyLiveUpdateStyle(context, builder, remaining, focusCritical, accelerated);
             }
         }
         Notification builtNotification;
@@ -580,7 +584,7 @@ public final class NowBarManager {
     }
 
     private static void applySamsungCompatibility(Context context, Notification.Builder builder,
-            UsageWindow fiveHour, UsageWindow weekly, String longLabel, int used,
+            UsageWindow fiveHour, UsageWindow weekly, String longLabel, int remaining,
             UsageWindow progressWindow,
             boolean weeklyFocus, long until, long now, long observedAt, boolean preview,
             boolean accelerated, String estimate) {
@@ -609,7 +613,7 @@ public final class NowBarManager {
         extras.putCharSequence(SAMSUNG_ONGOING_PREFIX + "secondaryInfo",
                 accelerated && !estimate.isEmpty() ? estimate : availableWindows);
         extras.putString(SAMSUNG_ONGOING_PREFIX + "description", "Codex usage limits");
-        extras.putInt(SAMSUNG_ONGOING_PREFIX + "progress", used);
+        extras.putInt(SAMSUNG_ONGOING_PREFIX + "progress", remaining);
         extras.putInt(SAMSUNG_ONGOING_PREFIX + "progressMax", 100);
         extras.putParcelable(SAMSUNG_ONGOING_PREFIX + "progressSegments.icon", progressDot);
         extras.putParcelable(SAMSUNG_ONGOING_PREFIX + "nowbarIcon", nowBarIcon);
@@ -618,7 +622,7 @@ public final class NowBarManager {
         extras.putString(SAMSUNG_ONGOING_PREFIX + "nowbarIconType", "progress");
         builder.addExtras(extras)
                 .setSubText(preview ? "Now Bar preview" : "Until the next usage reset")
-                .setProgress(100, used, false)
+                .setProgress(100, remaining, false)
                 .setCategory(Notification.CATEGORY_STATUS)
                 .setShowWhen(true)
                 .setWhen(until)
@@ -777,10 +781,10 @@ public final class NowBarManager {
     /** Keeps API 36 class references out of code paths verified on older Android releases. */
     @RequiresApi(36)
     private static final class Api36 {
-        static void applyLiveUpdateStyle(Context context, Notification.Builder builder, int used,
+        static void applyLiveUpdateStyle(Context context, Notification.Builder builder, int remaining,
                 String criticalText, boolean accelerated) {
             Notification.ProgressStyle style = new Notification.ProgressStyle()
-                    .setProgress(used)
+                    .setProgress(remaining)
                     .setStyledByProgress(true)
                     // Plain circle tracker — not the brand glyph (that belongs in setSmallIcon).
                     .setProgressTrackerIcon(
