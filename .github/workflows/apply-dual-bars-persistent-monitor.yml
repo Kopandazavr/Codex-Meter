@@ -1,0 +1,97 @@
+name: Apply dual bars and persistent monitor patch
+
+on:
+  workflow_dispatch:
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - name: Apply patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('android/app/src/main/java/dev/bennett/codexmeter/NowBarManager.java')
+          s = p.read_text()
+
+          s = s.replace('import android.util.Log;\n', 'import android.util.Log;\nimport android.view.View;\nimport android.widget.RemoteViews;\n')
+          s = s.replace('    static final String ACTION_REFRESH = "dev.bennett.codexmeter.action.NOW_BAR_REFRESH";\n', '    static final String ACTION_REFRESH = "dev.bennett.codexmeter.action.NOW_BAR_REFRESH";\n    static final String ACTION_DISMISSED = "dev.bennett.codexmeter.action.NOW_BAR_DISMISSED";\n')
+          s = s.replace('    private static final int REQUEST_STOP = 8613;\n', '    private static final int REQUEST_STOP = 8613;\n    private static final int REQUEST_DISMISSED = 8615;\n')
+
+          old = '''        PendingIntent refreshIntent = PendingIntent.getBroadcast(context, REQUEST_REFRESH,\n                new Intent(context, NowBarActionReceiver.class).setAction(ACTION_REFRESH),\n                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);\n'''
+          new = old + '''        PendingIntent dismissedIntent = PendingIntent.getBroadcast(context, REQUEST_DISMISSED,\n                new Intent(context, NowBarActionReceiver.class).setAction(ACTION_DISMISSED),\n                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+          s = s.replace('                .setDeleteIntent(stopIntent)\n', '                .setDeleteIntent(dismissedIntent)\n', 1)
+
+          marker = '''        if (!preview) {\n            builder.addAction(new Notification.Action.Builder(\n                    refreshActionIcon, "Refresh", refreshIntent).build());\n'''
+          assert marker in s
+          # custom collapsed view is applied after actions are attached; platform expanded style stays intact.
+          insertion_point = '''        if (NowBarDisplayMode.SAMSUNG_COMPATIBILITY.equals(displayMode)) {\n'''
+          custom = '''        builder.setCustomContentView(buildDualUsageContentView(\n                context, fiveHour, weekly, longLabel, observedAt, now));\n\n'''
+          assert insertion_point in s
+          s = s.replace(insertion_point, custom + insertion_point, 1)
+
+          # Make user-started monitor persistent across reset boundaries.
+          old_block = '''            long until = activeUntil(context);\n            if (until <= now) {\n                stop(context, false);\n                return;\n            }\n            if (!post(context, snapshot, until, false)) stop(context, false);\n            return;\n'''
+          new_block = '''            long until = activeUntil(context);\n            if (until <= now && START_MANUAL.equals(sessionStartReason(context))) {\n                until = snapshot.nextResetMillis(now);\n                if (until > now) {\n                    saveState(context, false, until, lockedFocusMetric(context), false, null,\n                            START_MANUAL);\n                } else {\n                    RefreshScheduler.scheduleImmediate(context);\n                    return;\n                }\n            } else if (until <= now) {\n                stop(context, false);\n                return;\n            }\n            if (!post(context, snapshot, until, false)) stop(context, false);\n            return;\n'''
+          assert old_block in s
+          s = s.replace(old_block, new_block, 1)
+
+          # Restore manual sessions even if their previously stored reset time is in the past.
+          old_restore = '''        if (hasStoredActiveState(context)) {\n            long until = activeUntil(context);\n            if (until <= System.currentTimeMillis()) {\n                stop(context, false);\n            } else if (isPreview(context)) {\n'''
+          new_restore = '''        if (hasStoredActiveState(context)) {\n            long now = System.currentTimeMillis();\n            long until = activeUntil(context);\n            if (until <= now && START_MANUAL.equals(sessionStartReason(context))) {\n                UsageSnapshot snapshot = AppPreferences.loadSnapshot(context);\n                long next = snapshot == null ? 0L : snapshot.nextResetMillis(now);\n                if (next > now) {\n                    saveState(context, false, next, lockedFocusMetric(context), false, null,\n                            START_MANUAL);\n                    if (post(context, snapshot, next, false)) return;\n                }\n                RefreshScheduler.scheduleImmediate(context);\n                return;\n            } else if (until <= now) {\n                stop(context, false);\n            } else if (isPreview(context)) {\n'''
+          assert old_restore in s
+          s = s.replace(old_restore, new_restore, 1)
+
+          # Repost when system/UI clears the notification, rather than turning the monitor off.
+          stop_marker = '''    public static synchronized void stop(Context context) {\n        stop(context, true);\n    }\n\n'''
+          extra_methods = '''    public static synchronized void onUserDismissed(Context context) {\n        if (!hasStoredActiveState(context)) return;\n        new Handler(Looper.getMainLooper()).postDelayed(\n                () -> repostActive(context), 300L);\n    }\n\n    public static synchronized void onScheduledEnd(Context context) {\n        if (!hasStoredActiveState(context)) return;\n        if (!START_MANUAL.equals(sessionStartReason(context))) {\n            stop(context, false);\n            return;\n        }\n        long now = System.currentTimeMillis();\n        UsageSnapshot snapshot = AppPreferences.loadSnapshot(context);\n        long next = snapshot == null ? 0L : snapshot.nextResetMillis(now);\n        if (next > now) {\n            saveState(context, false, next, lockedFocusMetric(context), false, null, START_MANUAL);\n            post(context, snapshot, next, false);\n        }\n        RefreshScheduler.scheduleImmediate(context);\n    }\n\n'''
+          assert stop_marker in s
+          s = s.replace(stop_marker, extra_methods + stop_marker, 1)
+
+          # Manual sessions remain logically active between reset alarm and fresh usage response.
+          old_active = '''    public static boolean isActive(Context context) {\n        return state(context).getBoolean(KEY_ACTIVE, false)\n                && activeUntil(context) > System.currentTimeMillis();\n    }\n'''
+          new_active = '''    public static boolean isActive(Context context) {\n        if (!state(context).getBoolean(KEY_ACTIVE, false)) return false;\n        return START_MANUAL.equals(sessionStartReason(context))\n                || activeUntil(context) > System.currentTimeMillis();\n    }\n'''
+          assert old_active in s
+          s = s.replace(old_active, new_active, 1)
+
+          # Do not let Samsung timeout a manually enabled monitor at the next reset.
+          old_timeout = '''                .setWhen(until)\n                .setUsesChronometer(true)\n                .setChronometerCountDown(true)\n                .setTimeoutAfter(Math.max(1L, until - now));\n'''
+          new_timeout = '''                .setWhen(until)\n                .setUsesChronometer(true)\n                .setChronometerCountDown(true);\n        if (!START_MANUAL.equals(sessionStartReason(context))) {\n            builder.setTimeoutAfter(Math.max(1L, until - now));\n        }\n'''
+          assert old_timeout in s
+          s = s.replace(old_timeout, new_timeout, 1)
+
+          # Helper for two independent remaining-allowance bars in the notification shade.
+          helper_marker = '''    private static void applySamsungCompatibility(Context context, Notification.Builder builder,\n'''
+          helper = '''    private static RemoteViews buildDualUsageContentView(Context context,\n            UsageWindow fiveHour, UsageWindow weekly, String longLabel, long observedAt, long now) {\n        RemoteViews views = new RemoteViews(context.getPackageName(),\n                R.layout.notification_usage_dual_bars);\n        int textColor = (context.getResources().getConfiguration().uiMode\n                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES\n                ? Color.WHITE : Color.rgb(32, 33, 36);\n\n        UsageWindow currentFive = UsageSnapshot.currentWindow(fiveHour, observedAt, now);\n        UsageWindow currentLong = UsageSnapshot.currentWindow(weekly, observedAt, now);\n        if (currentFive == null) {\n            views.setViewVisibility(R.id.notification_five_row, View.GONE);\n        } else {\n            views.setViewVisibility(R.id.notification_five_row, View.VISIBLE);\n            views.setTextViewText(R.id.notification_five_text,\n                    NowBarCopy.limitText("5-hour", currentFive, observedAt, now));\n            views.setTextColor(R.id.notification_five_text, textColor);\n            views.setProgressBar(R.id.notification_five_progress, 100,\n                    currentFive.remainingPercent(), false);\n        }\n        if (currentLong == null) {\n            views.setViewVisibility(R.id.notification_long_row, View.GONE);\n        } else {\n            views.setViewVisibility(R.id.notification_long_row, View.VISIBLE);\n            views.setTextViewText(R.id.notification_long_text,\n                    NowBarCopy.limitText(longLabel, currentLong, observedAt, now));\n            views.setTextColor(R.id.notification_long_text, textColor);\n            views.setProgressBar(R.id.notification_long_progress, 100,\n                    currentLong.remainingPercent(), false);\n        }\n        return views;\n    }\n\n'''
+          assert helper_marker in s
+          s = s.replace(helper_marker, helper + helper_marker, 1)
+          p.write_text(s)
+
+          p = Path('android/app/src/main/java/dev/bennett/codexmeter/NowBarActionReceiver.java')
+          s = p.read_text()
+          s = s.replace('''        } else if (NowBarManager.ACTION_END.equals(action)) {\n            NowBarManager.stop(context, false);\n''', '''        } else if (NowBarManager.ACTION_END.equals(action)) {\n            NowBarManager.onScheduledEnd(context);\n''')
+          s = s.replace('''        } else if (NowBarManager.ACTION_REFRESH.equals(action)) {\n            RefreshScheduler.scheduleImmediate(context);\n''', '''        } else if (NowBarManager.ACTION_REFRESH.equals(action)) {\n            RefreshScheduler.scheduleImmediate(context);\n        } else if (NowBarManager.ACTION_DISMISSED.equals(action)) {\n            NowBarManager.onUserDismissed(context);\n''')
+          p.write_text(s)
+
+          layout = Path('android/app/src/main/res/layout/notification_usage_dual_bars.xml')
+          layout.write_text('''<?xml version="1.0" encoding="utf-8"?>\n<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"\n    android:layout_width="match_parent"\n    android:layout_height="wrap_content"\n    android:orientation="vertical"\n    android:paddingStart="4dp"\n    android:paddingEnd="4dp"\n    android:paddingTop="2dp"\n    android:paddingBottom="2dp">\n\n    <LinearLayout\n        android:id="@+id/notification_five_row"\n        android:layout_width="match_parent"\n        android:layout_height="wrap_content"\n        android:orientation="vertical">\n        <TextView\n            android:id="@+id/notification_five_text"\n            android:layout_width="match_parent"\n            android:layout_height="wrap_content"\n            android:maxLines="1"\n            android:ellipsize="end"\n            android:textSize="12sp"/>\n        <ProgressBar\n            android:id="@+id/notification_five_progress"\n            style="?android:attr/progressBarStyleHorizontal"\n            android:layout_width="match_parent"\n            android:layout_height="5dp"\n            android:max="100"\n            android:progressTint="#70A7FF"/>\n    </LinearLayout>\n\n    <LinearLayout\n        android:id="@+id/notification_long_row"\n        android:layout_width="match_parent"\n        android:layout_height="wrap_content"\n        android:layout_marginTop="3dp"\n        android:orientation="vertical">\n        <TextView\n            android:id="@+id/notification_long_text"\n            android:layout_width="match_parent"\n            android:layout_height="wrap_content"\n            android:maxLines="1"\n            android:ellipsize="end"\n            android:textSize="12sp"/>\n        <ProgressBar\n            android:id="@+id/notification_long_progress"\n            style="?android:attr/progressBarStyleHorizontal"\n            android:layout_width="match_parent"\n            android:layout_height="5dp"\n            android:max="100"\n            android:progressTint="#F4B95F"/>\n    </LinearLayout>\n</LinearLayout>\n''')
+          PY
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name "Kopandazavr"
+          git config user.email "101416382+Kopandazavr@users.noreply.github.com"
+          git add android/app/src/main/java/dev/bennett/codexmeter/NowBarManager.java \
+                  android/app/src/main/java/dev/bennett/codexmeter/NowBarActionReceiver.java \
+                  android/app/src/main/res/layout/notification_usage_dual_bars.xml
+          git commit -m "Show dual usage bars and keep manual live monitor persistent"
+          git push origin HEAD:feature/dual-bars-persistent-monitor
