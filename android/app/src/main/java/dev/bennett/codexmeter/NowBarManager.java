@@ -151,15 +151,15 @@ public final class NowBarManager {
                         START_ACCELERATED);
             }
             long until = activeUntil(context);
-            if (until <= now && START_MANUAL.equals(sessionStartReason(context))) {
-                until = snapshot.nextResetMillis(now);
-                if (until > now) {
-                    saveState(context, false, until, lockedFocusMetric(context), false, null,
-                            START_MANUAL);
-                } else {
+            if (START_MANUAL.equals(sessionStartReason(context))) {
+                long next = snapshot.nextResetMillis(now);
+                if (next <= now) {
                     RefreshScheduler.scheduleImmediate(context);
                     return;
                 }
+                until = next;
+                saveState(context, false, until, lockedFocusMetric(context), false, null,
+                        START_MANUAL);
             } else if (until <= now) {
                 stop(context, false);
                 return;
@@ -242,8 +242,19 @@ public final class NowBarManager {
 
     public static synchronized boolean repostActive(Context context) {
         if (!hasStoredActiveState(context)) return false;
+        long now = System.currentTimeMillis();
         long until = activeUntil(context);
-        if (until <= System.currentTimeMillis()) {
+        if (until <= now && START_MANUAL.equals(sessionStartReason(context))) {
+            UsageSnapshot snapshot = AppPreferences.loadSnapshot(context);
+            long next = snapshot == null ? 0L : snapshot.nextResetMillis(now);
+            if (next <= now) {
+                RefreshScheduler.scheduleImmediate(context);
+                return true;
+            }
+            until = next;
+            saveState(context, false, until, lockedFocusMetric(context), false, null,
+                    START_MANUAL);
+        } else if (until <= now) {
             stop(context, false);
             return false;
         }
@@ -303,14 +314,14 @@ public final class NowBarManager {
      */
     public static synchronized boolean applyPercentModeChange(Context context) {
         if (!hasStoredActiveState(context)) return false;
+        long now = System.currentTimeMillis();
         long until = activeUntil(context);
-        if (until <= System.currentTimeMillis()) {
+        if (until <= now && !START_MANUAL.equals(sessionStartReason(context))) {
             stop(context, false);
             return false;
         }
         boolean preview = isPreview(context);
         UsageSnapshot snapshot;
-        long now = System.currentTimeMillis();
         if (preview) {
             snapshot = new UsageSnapshot("plus", true, false, null,
                     new UsageWindow(18, TimeUnit.DAYS.toSeconds(7), 0L, 0L), now);
@@ -319,6 +330,14 @@ public final class NowBarManager {
             if (snapshot == null || (snapshot.fiveHour == null && snapshot.longWindow() == null)) {
                 stop(context, false);
                 return false;
+            }
+            if (START_MANUAL.equals(sessionStartReason(context))) {
+                long next = snapshot.nextResetMillis(now);
+                if (next <= now) {
+                    RefreshScheduler.scheduleImmediate(context);
+                    return true;
+                }
+                until = next;
             }
         }
         UsageWindow fiveHour = UsageSnapshot.currentWindow(
