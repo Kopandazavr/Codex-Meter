@@ -1,0 +1,125 @@
+name: Apply custom live monitor patch
+
+on:
+  push:
+    branches:
+      - feature/remaining-progress-reset-bell
+    paths:
+      - '.github/workflows/apply-custom-live-monitor-patch.yml'
+      - 'android/app/src/main/java/dev/bennett/codexmeter/NowBarResetReminder.java'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[custom-live-monitor-applied]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feature/remaining-progress-reset-bell
+          fetch-depth: 0
+
+      - name: Apply source changes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"Expected exactly one match in {path}, got {count}: {old[:90]!r}")
+              p.write_text(text.replace(old, new, 1))
+
+          manager = 'android/app/src/main/java/dev/bennett/codexmeter/NowBarManager.java'
+          replace_once(manager,
+              '        int remaining = progressWindow == null ? 0 : progressWindow.remainingPercent();\n'
+              '        int used = progressWindow == null ? 0 : progressWindow.usedPercent;\n',
+              '        int remaining = progressWindow == null ? 0 : progressWindow.remainingPercent();\n')
+
+          replace_once(manager,
+              '        if (!preview) {\n'
+              '            builder.addAction(new Notification.Action.Builder(\n'
+              '                    refreshActionIcon, "Refresh", refreshIntent).build());\n'
+              '        }\n'
+              '        if (NowBarDisplayMode.SAMSUNG_COMPATIBILITY.equals(displayMode)) {\n'
+              '            applySamsungCompatibility(context, builder, fiveHour, weekly, longLabel, used,\n'
+              '                    progressWindow, weeklyFocus, until, now, observedAt, preview,\n'
+              '                    accelerated, estimate);\n',
+              '        if (!preview) {\n'
+              '            builder.addAction(new Notification.Action.Builder(\n'
+              '                    refreshActionIcon, "Refresh", refreshIntent).build());\n'
+              '            String reminderMetric = weeklyFocus\n'
+              '                    ? (longIsMonthly ? "monthly" : "weekly") : "five_hour";\n'
+              '            Notification.Action reminderAction = NowBarResetReminder.buildAction(\n'
+              '                    context, reminderMetric, progressWindow, observedAt);\n'
+              '            if (reminderAction != null) builder.addAction(reminderAction);\n'
+              '        }\n'
+              '        if (NowBarDisplayMode.SAMSUNG_COMPATIBILITY.equals(displayMode)) {\n'
+              '            applySamsungCompatibility(context, builder, fiveHour, weekly, longLabel, remaining,\n'
+              '                    progressWindow, weeklyFocus, until, now, observedAt, preview,\n'
+              '                    accelerated, estimate);\n')
+
+          replace_once(manager,
+              '                Api36.applyLiveUpdateStyle(context, builder, used, focusCritical, accelerated);',
+              '                Api36.applyLiveUpdateStyle(context, builder, remaining, focusCritical, accelerated);')
+
+          replace_once(manager,
+              '            UsageWindow fiveHour, UsageWindow weekly, String longLabel, int used,\n',
+              '            UsageWindow fiveHour, UsageWindow weekly, String longLabel, int remaining,\n')
+          replace_once(manager,
+              '        extras.putInt(SAMSUNG_ONGOING_PREFIX + "progress", used);',
+              '        extras.putInt(SAMSUNG_ONGOING_PREFIX + "progress", remaining);')
+          replace_once(manager,
+              '                .setProgress(100, used, false)',
+              '                .setProgress(100, remaining, false)')
+          replace_once(manager,
+              '        static void applyLiveUpdateStyle(Context context, Notification.Builder builder, int used,\n'
+              '                String criticalText, boolean accelerated) {\n'
+              '            Notification.ProgressStyle style = new Notification.ProgressStyle()\n'
+              '                    .setProgress(used)\n',
+              '        static void applyLiveUpdateStyle(Context context, Notification.Builder builder, int remaining,\n'
+              '                String criticalText, boolean accelerated) {\n'
+              '            Notification.ProgressStyle style = new Notification.ProgressStyle()\n'
+              '                    .setProgress(remaining)\n')
+
+          receiver = 'android/app/src/main/java/dev/bennett/codexmeter/NowBarActionReceiver.java'
+          replace_once(receiver,
+              '        } else if (NowBarManager.ACTION_REFRESH.equals(action)) {\n'
+              '            RefreshScheduler.scheduleImmediate(context);\n'
+              '        }\n',
+              '        } else if (NowBarManager.ACTION_REFRESH.equals(action)) {\n'
+              '            RefreshScheduler.scheduleImmediate(context);\n'
+              '        } else if (NowBarResetReminder.ACTION_TOGGLE.equals(action)) {\n'
+              '            NowBarResetReminder.toggleFromIntent(context, intent);\n'
+              '        } else if (NowBarResetReminder.ACTION_FIRE.equals(action)) {\n'
+              '            NowBarResetReminder.fireFromIntent(context, intent);\n'
+              '        }\n')
+
+          boot = 'android/app/src/main/java/dev/bennett/codexmeter/BootReceiver.java'
+          replace_once(boot,
+              '            NowBarManager.restore(context);\n',
+              '            NowBarResetReminder.restore(context);\n'
+              '            NowBarManager.restore(context);\n')
+
+          drawable_dir = Path('android/app/src/main/res/drawable')
+          drawable_dir.joinpath('ic_bell_on.xml').write_text('''<?xml version="1.0" encoding="utf-8"?>\n<vector xmlns:android="http://schemas.android.com/apk/res/android"\n    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">\n    <path android:fillColor="#FFFFFFFF" android:pathData="M12,22a2.5,2.5 0,0 0,2.45 -2h-4.9A2.5,2.5 0,0 0,12 22zM18,16v-5a6,6 0,0 0,-5 -5.91V4a1,1 0,0 0,-2 0v1.09A6,6 0,0 0,6 11v5l-2,2v1h16v-1z"/>\n</vector>\n''')
+          drawable_dir.joinpath('ic_bell_off.xml').write_text('''<?xml version="1.0" encoding="utf-8"?>\n<vector xmlns:android="http://schemas.android.com/apk/res/android"\n    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">\n    <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.55" android:pathData="M12,22a2.5,2.5 0,0 0,2.45 -2h-4.9A2.5,2.5 0,0 0,12 22zM18,16v-5a6,6 0,0 0,-5 -5.91V4a1,1 0,0 0,-2 0v1.09A6,6 0,0 0,6 11v5l-2,2v1h16v-1z"/>\n    <path android:fillColor="#FFFFFFFF" android:pathData="M5.27,4 4,5.27 18.73,20 20,18.73z"/>\n</vector>\n''')
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add android/app/src/main/java/dev/bennett/codexmeter/NowBarManager.java \
+                  android/app/src/main/java/dev/bennett/codexmeter/NowBarActionReceiver.java \
+                  android/app/src/main/java/dev/bennett/codexmeter/BootReceiver.java \
+                  android/app/src/main/res/drawable/ic_bell_on.xml \
+                  android/app/src/main/res/drawable/ic_bell_off.xml
+          git diff --cached --check
+          git commit -m "Customize live usage monitor [custom-live-monitor-applied]"
+          git push origin HEAD:feature/remaining-progress-reset-bell
