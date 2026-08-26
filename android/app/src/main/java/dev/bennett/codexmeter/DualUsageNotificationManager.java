@@ -53,8 +53,7 @@ final class DualUsageNotificationManager {
             focus = NowBarPercentMode.lowerRemainingFocus(fiveHour, longWindow);
         }
         UsageWindow paceWindow = NowBarPercentMode.selectWindow(focus, fiveHour, longWindow);
-        UsagePace.Assessment pace = UsagePacePreferences.assess(context, snapshot, paceWindow, now);
-        String estimate = UsageFormat.estimatedRemaining(pace);
+        String longResetTime = formatResetTime(longWindow, observedAt);
 
         try {
             SubscriptionStore.seedFromJwt(context, SecureTokenStore.load(context), now);
@@ -80,14 +79,15 @@ final class DualUsageNotificationManager {
         Icon stopIcon = Icon.createWithResource(context, R.drawable.ic_notification);
         Icon refreshIcon = Icon.createWithResource(context, R.drawable.ic_refresh);
         RemoteViews compact = buildViews(context, fiveHour, longWindow, longLabel,
-                observedAt, now, planText, estimate);
+                observedAt, now, planText, longResetTime);
         RemoteViews expanded = buildViews(context, fiveHour, longWindow, longLabel,
-                observedAt, now, planText, estimate);
+                observedAt, now, planText, longResetTime);
 
         String fiveText = NowBarCopy.limitText("5-hour", fiveHour, observedAt, now);
         String longText = NowBarCopy.limitText(longLabel, longWindow, observedAt, now);
         String fallbackText = fiveText + " · " + longText
-                + (estimate.isEmpty() ? "" : " · " + estimate);
+                + (longResetTime.isEmpty() ? ""
+                : " · " + longLabel + " reset: " + longResetTime);
         Notification.Builder builder = new Notification.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle("Codex usage")
@@ -121,7 +121,8 @@ final class DualUsageNotificationManager {
             DiagnosticLog.info(context, "now_bar", "dual_notification_posted",
                     "five_hour", fiveHour != null,
                     "long_window", longWindow != null,
-                    "plan_expiry", subscription != null && subscription.activeUntilMillis > 0L);
+                    "plan_expiry", subscription != null && subscription.activeUntilMillis > 0L,
+                    "long_reset", longWindow != null && !longResetTime.isEmpty());
             return true;
         } catch (RuntimeException exception) {
             DiagnosticLog.error(context, "now_bar", "dual_notification_post_failed", exception);
@@ -144,7 +145,7 @@ final class DualUsageNotificationManager {
 
     private static RemoteViews buildViews(Context context, UsageWindow fiveHour,
             UsageWindow longWindow, String longLabel, long observedAt, long now,
-            String planText, String estimate) {
+            String planText, String longResetTime) {
         RemoteViews views = new RemoteViews(context.getPackageName(),
                 R.layout.notification_usage_dual_bars);
         int textColor = (context.getResources().getConfiguration().uiMode
@@ -175,13 +176,22 @@ final class DualUsageNotificationManager {
         } else {
             views.setViewVisibility(R.id.notification_long_row, View.VISIBLE);
             String longText = NowBarCopy.limitText(longLabel, longWindow, observedAt, now);
-            if (!estimate.isEmpty()) longText += " · " + estimate;
+            if (!longResetTime.isEmpty()) longText += " · reset " + longResetTime;
             views.setTextViewText(R.id.notification_long_text, longText);
             views.setTextColor(R.id.notification_long_text, textColor);
             views.setProgressBar(R.id.notification_long_progress, 100,
                     longWindow.remainingPercent(), false);
         }
         return views;
+    }
+
+    static String formatResetTime(UsageWindow window, long observedAtMillis) {
+        if (window == null) return "";
+        long resetAt = window.effectiveResetAtMillis(observedAtMillis);
+        if (resetAt <= 0L) return "";
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM, HH:mm",
+                Locale.getDefault()).withZone(ZoneId.systemDefault());
+        return formatter.format(Instant.ofEpochMilli(resetAt));
     }
 
     static String formatSubscription(SubscriptionInfo info) {
