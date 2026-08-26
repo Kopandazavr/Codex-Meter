@@ -68,6 +68,9 @@ public final class UsageApi {
                             exception);
                 }
                 NowBarManager.onUsageUpdated(context, usageSnapshot);
+                // NowBarManager must post first so its state/alarms remain authoritative. The
+                // compact renderer then replaces the shade card with two independent tracks.
+                DualUsageNotificationManager.postFromSnapshot(context, usageSnapshot);
                 ResetNotificationManager.onUsageUpdated(context, previousSnapshot, usageSnapshot);
                 try {
                     ResetAlertScheduler.scheduleFromSnapshot(context, usageSnapshot);
