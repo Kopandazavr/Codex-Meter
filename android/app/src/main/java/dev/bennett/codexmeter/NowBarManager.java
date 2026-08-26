@@ -18,6 +18,8 @@ import android.os.Handler;
 import android.os.Looper;
 import android.service.notification.StatusBarNotification;
 import android.util.Log;
+import android.view.View;
+import android.widget.RemoteViews;
 import androidx.annotation.RequiresApi;
 import dev.bennett.codexmeter.wear.PhoneWearSync;
 import java.util.Collections;
@@ -31,6 +33,7 @@ import java.util.concurrent.TimeUnit;
 public final class NowBarManager {
     static final String ACTION_END = "dev.bennett.codexmeter.action.NOW_BAR_END";
     static final String ACTION_REFRESH = "dev.bennett.codexmeter.action.NOW_BAR_REFRESH";
+    static final String ACTION_DISMISSED = "dev.bennett.codexmeter.action.NOW_BAR_DISMISSED";
     static final String ACTION_STOP = "dev.bennett.codexmeter.action.NOW_BAR_STOP";
 
     private static final String CHANNEL_ID = "codex_live_monitor_v2";
@@ -51,6 +54,7 @@ public final class NowBarManager {
     private static final int REQUEST_END = 8611;
     private static final int REQUEST_REFRESH = 8612;
     private static final int REQUEST_STOP = 8613;
+    private static final int REQUEST_DISMISSED = 8615;
     private static final String PREFS = "codex_meter_now_bar_v1";
     private static final String SAMSUNG_ONGOING_PREFIX = "android.ongoingActivityNoti.";
     private static final String TAG = "CodexNowBar";
@@ -147,7 +151,16 @@ public final class NowBarManager {
                         START_ACCELERATED);
             }
             long until = activeUntil(context);
-            if (until <= now) {
+            if (until <= now && START_MANUAL.equals(sessionStartReason(context))) {
+                until = snapshot.nextResetMillis(now);
+                if (until > now) {
+                    saveState(context, false, until, lockedFocusMetric(context), false, null,
+                            START_MANUAL);
+                } else {
+                    RefreshScheduler.scheduleImmediate(context);
+                    return;
+                }
+            } else if (until <= now) {
                 stop(context, false);
                 return;
             }
@@ -193,8 +206,19 @@ public final class NowBarManager {
 
     public static synchronized void restore(Context context) {
         if (hasStoredActiveState(context)) {
+            long now = System.currentTimeMillis();
             long until = activeUntil(context);
-            if (until <= System.currentTimeMillis()) {
+            if (until <= now && START_MANUAL.equals(sessionStartReason(context))) {
+                UsageSnapshot snapshot = AppPreferences.loadSnapshot(context);
+                long next = snapshot == null ? 0L : snapshot.nextResetMillis(now);
+                if (next > now) {
+                    saveState(context, false, next, lockedFocusMetric(context), false, null,
+                            START_MANUAL);
+                    if (post(context, snapshot, next, false)) return;
+                }
+                RefreshScheduler.scheduleImmediate(context);
+                return;
+            } else if (until <= now) {
                 stop(context, false);
             } else if (isPreview(context)) {
                 if (!startPreviewWithEnd(context, until)) stop(context, false);
@@ -313,6 +337,28 @@ public final class NowBarManager {
         return false;
     }
 
+    public static synchronized void onUserDismissed(Context context) {
+        if (!hasStoredActiveState(context)) return;
+        new Handler(Looper.getMainLooper()).postDelayed(
+                () -> repostActive(context), 300L);
+    }
+
+    public static synchronized void onScheduledEnd(Context context) {
+        if (!hasStoredActiveState(context)) return;
+        if (!START_MANUAL.equals(sessionStartReason(context))) {
+            stop(context, false);
+            return;
+        }
+        long now = System.currentTimeMillis();
+        UsageSnapshot snapshot = AppPreferences.loadSnapshot(context);
+        long next = snapshot == null ? 0L : snapshot.nextResetMillis(now);
+        if (next > now) {
+            saveState(context, false, next, lockedFocusMetric(context), false, null, START_MANUAL);
+            post(context, snapshot, next, false);
+        }
+        RefreshScheduler.scheduleImmediate(context);
+    }
+
     public static synchronized void stop(Context context) {
         stop(context, true);
     }
@@ -352,8 +398,9 @@ public final class NowBarManager {
     }
 
     public static boolean isActive(Context context) {
-        return state(context).getBoolean(KEY_ACTIVE, false)
-                && activeUntil(context) > System.currentTimeMillis();
+        if (!state(context).getBoolean(KEY_ACTIVE, false)) return false;
+        return START_MANUAL.equals(sessionStartReason(context))
+                || activeUntil(context) > System.currentTimeMillis();
     }
 
     public static boolean isPreview(Context context) {
@@ -472,6 +519,9 @@ public final class NowBarManager {
         PendingIntent refreshIntent = PendingIntent.getBroadcast(context, REQUEST_REFRESH,
                 new Intent(context, NowBarActionReceiver.class).setAction(ACTION_REFRESH),
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent dismissedIntent = PendingIntent.getBroadcast(context, REQUEST_DISMISSED,
+                new Intent(context, NowBarActionReceiver.class).setAction(ACTION_DISMISSED),
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Icon stopActionIcon = Icon.createWithResource(context, R.drawable.ic_notification);
         Icon refreshActionIcon = Icon.createWithResource(context, R.drawable.ic_refresh);
         String displayMode = resolveDisplayMode(context);
@@ -482,7 +532,7 @@ public final class NowBarManager {
                 .setContentTitle(title)
                 .setContentText(text)
                 .setContentIntent(contentIntent)
-                .setDeleteIntent(stopIntent)
+                .setDeleteIntent(dismissedIntent)
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
                 .setCategory(Notification.CATEGORY_PROGRESS)
@@ -500,6 +550,9 @@ public final class NowBarManager {
                     context, reminderMetric, progressWindow, observedAt);
             if (reminderAction != null) builder.addAction(reminderAction);
         }
+        builder.setCustomContentView(buildDualUsageContentView(
+                context, fiveHour, weekly, longLabel, observedAt, now));
+
         if (NowBarDisplayMode.SAMSUNG_COMPATIBILITY.equals(displayMode)) {
             applySamsungCompatibility(context, builder, fiveHour, weekly, longLabel, remaining,
                     progressWindow, weeklyFocus, until, now, observedAt, preview,
@@ -583,6 +636,39 @@ public final class NowBarManager {
         return true;
     }
 
+    private static RemoteViews buildDualUsageContentView(Context context,
+            UsageWindow fiveHour, UsageWindow weekly, String longLabel, long observedAt, long now) {
+        RemoteViews views = new RemoteViews(context.getPackageName(),
+                R.layout.notification_usage_dual_bars);
+        int textColor = (context.getResources().getConfiguration().uiMode
+                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+                ? Color.WHITE : Color.rgb(32, 33, 36);
+
+        UsageWindow currentFive = UsageSnapshot.currentWindow(fiveHour, observedAt, now);
+        UsageWindow currentLong = UsageSnapshot.currentWindow(weekly, observedAt, now);
+        if (currentFive == null) {
+            views.setViewVisibility(R.id.notification_five_row, View.GONE);
+        } else {
+            views.setViewVisibility(R.id.notification_five_row, View.VISIBLE);
+            views.setTextViewText(R.id.notification_five_text,
+                    NowBarCopy.limitText("5-hour", currentFive, observedAt, now));
+            views.setTextColor(R.id.notification_five_text, textColor);
+            views.setProgressBar(R.id.notification_five_progress, 100,
+                    currentFive.remainingPercent(), false);
+        }
+        if (currentLong == null) {
+            views.setViewVisibility(R.id.notification_long_row, View.GONE);
+        } else {
+            views.setViewVisibility(R.id.notification_long_row, View.VISIBLE);
+            views.setTextViewText(R.id.notification_long_text,
+                    NowBarCopy.limitText(longLabel, currentLong, observedAt, now));
+            views.setTextColor(R.id.notification_long_text, textColor);
+            views.setProgressBar(R.id.notification_long_progress, 100,
+                    currentLong.remainingPercent(), false);
+        }
+        return views;
+    }
+
     private static void applySamsungCompatibility(Context context, Notification.Builder builder,
             UsageWindow fiveHour, UsageWindow weekly, String longLabel, int remaining,
             UsageWindow progressWindow,
@@ -627,8 +713,10 @@ public final class NowBarManager {
                 .setShowWhen(true)
                 .setWhen(until)
                 .setUsesChronometer(true)
-                .setChronometerCountDown(true)
-                .setTimeoutAfter(Math.max(1L, until - now));
+                .setChronometerCountDown(true);
+        if (!START_MANUAL.equals(sessionStartReason(context))) {
+            builder.setTimeoutAfter(Math.max(1L, until - now));
+        }
     }
 
     /**
