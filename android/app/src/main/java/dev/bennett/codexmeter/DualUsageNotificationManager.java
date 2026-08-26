@@ -86,9 +86,11 @@ final class DualUsageNotificationManager {
 
         String fiveText = NowBarCopy.limitText("5-hour", fiveHour, observedAt, now);
         String longText = NowBarCopy.limitText(longLabel, longWindow, observedAt, now);
-        String fallbackText = fiveText
-                + (fiveResetTime.isEmpty() ? "" : " · 5-hour reset: " + fiveResetTime)
-                + " · " + longText
+        // Keep the platform fallback exactly as compact as the last known-good dual-bar build.
+        // Samsung's decorated custom notification can change the amount of vertical space it
+        // grants the custom RemoteViews when this fallback becomes too long. The reset timestamps
+        // belong only in the custom rows below, where they do not affect that template decision.
+        String fallbackText = fiveText + " · " + longText
                 + (longResetTime.isEmpty() ? ""
                 : " · " + longLabel + " reset: " + longResetTime);
         Notification.Builder builder = new Notification.Builder(context, CHANNEL_ID)
