@@ -19,6 +19,7 @@ public final class BootReceiver extends BroadcastReceiver {
                     AppPreferences.loadResetCredits(context));
             NowBarResetReminder.restore(context);
             NowBarManager.restore(context);
+            DualUsageNotificationManager.repostDelayed(context, 500L);
             if ("android.intent.action.MY_PACKAGE_REPLACED".equals(action)) {
                 UpdateNotificationManager.dismiss(context);
                 UpdatePreferences.clearNotifiedVersion(context);

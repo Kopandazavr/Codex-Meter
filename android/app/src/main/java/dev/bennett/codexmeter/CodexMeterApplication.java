@@ -14,6 +14,7 @@ public final class CodexMeterApplication extends Application
         DiagnosticLog.install(this);
         registerActivityLifecycleCallbacks(this);
         DiagnosticLog.info(this, "process", "application_started");
+        DualUsageNotificationManager.repostDelayed(this, 350L);
     }
 
     @Override
@@ -40,6 +41,9 @@ public final class CodexMeterApplication extends Application
     public void onActivityResumed(Activity activity) {
         DiagnosticLog.info(this, "screen", "resumed",
                 "activity", activity.getClass().getSimpleName());
+        // Settings can start the native monitor from cached usage without a network refresh.
+        // Re-assert the compact shade presentation whenever the user returns to a screen.
+        DualUsageNotificationManager.repostDelayed(this, 200L);
     }
 
     @Override
