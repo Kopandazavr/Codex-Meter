@@ -1,0 +1,56 @@
+name: Finalize dual bars patch
+
+on:
+  push:
+    branches:
+      - feature/dual-bars-persistent-monitor
+    paths:
+      - '.github/workflows/finalize-dual-bars-patch.yml'
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Harden persistent manual monitor
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('android/app/src/main/java/dev/bennett/codexmeter/NowBarManager.java')
+          s = p.read_text()
+
+          old = '''            long until = activeUntil(context);\n            if (until <= now && START_MANUAL.equals(sessionStartReason(context))) {\n                until = snapshot.nextResetMillis(now);\n                if (until > now) {\n                    saveState(context, false, until, lockedFocusMetric(context), false, null,\n                            START_MANUAL);\n                } else {\n                    RefreshScheduler.scheduleImmediate(context);\n                    return;\n                }\n            } else if (until <= now) {\n                stop(context, false);\n                return;\n            }\n'''
+          new = '''            long until = activeUntil(context);\n            if (START_MANUAL.equals(sessionStartReason(context))) {\n                long next = snapshot.nextResetMillis(now);\n                if (next <= now) {\n                    RefreshScheduler.scheduleImmediate(context);\n                    return;\n                }\n                until = next;\n                saveState(context, false, until, lockedFocusMetric(context), false, null,\n                        START_MANUAL);\n            } else if (until <= now) {\n                stop(context, false);\n                return;\n            }\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = '''    public static synchronized boolean repostActive(Context context) {\n        if (!hasStoredActiveState(context)) return false;\n        long until = activeUntil(context);\n        if (until <= System.currentTimeMillis()) {\n            stop(context, false);\n            return false;\n        }\n        boolean posted;\n'''
+          new = '''    public static synchronized boolean repostActive(Context context) {\n        if (!hasStoredActiveState(context)) return false;\n        long now = System.currentTimeMillis();\n        long until = activeUntil(context);\n        if (until <= now && START_MANUAL.equals(sessionStartReason(context))) {\n            UsageSnapshot snapshot = AppPreferences.loadSnapshot(context);\n            long next = snapshot == null ? 0L : snapshot.nextResetMillis(now);\n            if (next <= now) {\n                RefreshScheduler.scheduleImmediate(context);\n                return true;\n            }\n            until = next;\n            saveState(context, false, until, lockedFocusMetric(context), false, null,\n                    START_MANUAL);\n        } else if (until <= now) {\n            stop(context, false);\n            return false;\n        }\n        boolean posted;\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = '''    public static synchronized boolean applyPercentModeChange(Context context) {\n        if (!hasStoredActiveState(context)) return false;\n        long until = activeUntil(context);\n        if (until <= System.currentTimeMillis()) {\n            stop(context, false);\n            return false;\n        }\n        boolean preview = isPreview(context);\n        UsageSnapshot snapshot;\n        long now = System.currentTimeMillis();\n'''
+          new = '''    public static synchronized boolean applyPercentModeChange(Context context) {\n        if (!hasStoredActiveState(context)) return false;\n        long now = System.currentTimeMillis();\n        long until = activeUntil(context);\n        if (until <= now && !START_MANUAL.equals(sessionStartReason(context))) {\n            stop(context, false);\n            return false;\n        }\n        boolean preview = isPreview(context);\n        UsageSnapshot snapshot;\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = '''        } else {\n            snapshot = AppPreferences.loadSnapshot(context);\n            if (snapshot == null || (snapshot.fiveHour == null && snapshot.longWindow() == null)) {\n                stop(context, false);\n                return false;\n            }\n        }\n        UsageWindow fiveHour = UsageSnapshot.currentWindow(\n'''
+          new = '''        } else {\n            snapshot = AppPreferences.loadSnapshot(context);\n            if (snapshot == null || (snapshot.fiveHour == null && snapshot.longWindow() == null)) {\n                stop(context, false);\n                return false;\n            }\n            if (START_MANUAL.equals(sessionStartReason(context))) {\n                long next = snapshot.nextResetMillis(now);\n                if (next <= now) {\n                    RefreshScheduler.scheduleImmediate(context);\n                    return true;\n                }\n                until = next;\n            }\n        }\n        UsageWindow fiveHour = UsageSnapshot.currentWindow(\n'''
+          assert old in s
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+      - name: Remove temporary patch workflows and commit
+        shell: bash
+        run: |
+          git config user.name "Kopandazavr"
+          git config user.email "101416382+Kopandazavr@users.noreply.github.com"
+          git rm .github/workflows/apply-dual-bars-persistent-monitor.yml \
+                 .github/workflows/run-dual-bars-patch.yml \
+                 .github/workflows/finalize-dual-bars-patch.yml
+          git add android/app/src/main/java/dev/bennett/codexmeter/NowBarManager.java
+          git commit -m "Harden persistent live monitor across resets and dismissals"
+          git push
