@@ -2,6 +2,8 @@ package dev.bennett.codexmeter;
 
 import android.app.AlarmManager;
 import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
@@ -15,10 +17,9 @@ import android.os.Build;
 /**
  * One-shot reset reminder controlled directly from the live usage notification.
  *
- * <p>This is intentionally independent from the app-wide usage-alert settings: tapping the bell
- * means "play a sound for this specific window reset" even when general low-usage/reset alerts are
- * disabled. Firing the reminder never posts a second notification; the existing live monitor is
- * simply refreshed/reposted in place.</p>
+ * <p>This is intentionally independent from the app-wide usage-alert enable switch: tapping the
+ * bell means "play a sound for this specific window reset". Firing the reminder never posts a
+ * second notification; the existing live monitor is simply refreshed/reposted in place.</p>
  */
 public final class NowBarResetReminder {
     static final String ACTION_TOGGLE =
@@ -34,6 +35,9 @@ public final class NowBarResetReminder {
     private static final String KEY_METRIC = "metric";
     private static final String KEY_RESET_AT = "reset_at";
     private static final String KEY_WINDOW_SECONDS = "window_seconds";
+    private static final String CHANNEL_NOTIFY = "codex_reset_notify";
+    private static final String CHANNEL_ALARM = "codex_reset_alarm";
+    private static final String CHANNEL_SILENT = "codex_reset_silent";
     private static final int REQUEST_TOGGLE = 8621;
     private static final int REQUEST_FIRE = 8622;
     private static final long DELIVERY_GRACE_MS = 3000L;
@@ -52,7 +56,6 @@ public final class NowBarResetReminder {
 
         boolean armed = isArmedFor(context, normalizedMetric, resetAt, windowSeconds);
         if (armed) {
-            // Keep the one-shot alarm aligned with small reset timestamp drift from the API.
             long storedResetAt = state(context).getLong(KEY_RESET_AT, 0L);
             if (storedResetAt != resetAt) {
                 armInternal(context, normalizedMetric, resetAt, windowSeconds);
@@ -84,7 +87,6 @@ public final class NowBarResetReminder {
         } else {
             armInternal(context, metric, resetAt, windowSeconds);
         }
-        // Rebuild the live notification immediately so the bell visually toggles.
         NowBarManager.repostActive(context);
     }
 
@@ -98,14 +100,13 @@ public final class NowBarResetReminder {
         if (!sameMetric(preferences.getString(KEY_METRIC, null), metric)
                 || preferences.getLong(KEY_RESET_AT, 0L) != resetAt
                 || preferences.getLong(KEY_WINDOW_SECONDS, 0L) != windowSeconds) {
-            return; // Stale alarm from a reminder that was replaced or cancelled.
+            return;
         }
 
         clearState(context);
         if (!SecureTokenStore.isSignedIn(context)) return;
         playResetSound(context, metric);
-        // Keep exactly one Codex Meter notification visible. Reposting uses the same live-monitor
-        // notification ID, so Samsung/Android has nothing new to group underneath it.
+        // Keep exactly one Codex Meter card: repost the same live-monitor notification ID.
         NowBarManager.repostActive(context);
         RefreshScheduler.scheduleImmediate(context);
         WidgetRenderer.updateAll(context);
@@ -160,6 +161,12 @@ public final class NowBarResetReminder {
                 .putLong(KEY_RESET_AT, resetAt)
                 .putLong(KEY_WINDOW_SECONDS, Math.max(0L, windowSeconds))
                 .apply();
+        // Ensure the user-configurable Codex Usage Alerts channel exists. We only read its
+        // configured sound when the bell fires; no secondary notification is posted.
+        try {
+            ResetNotificationManager.ensureChannel(context);
+        } catch (RuntimeException ignored) {
+        }
         schedule(context, metric, resetAt, windowSeconds);
     }
 
@@ -214,7 +221,10 @@ public final class NowBarResetReminder {
 
     private static void playResetSound(Context context, String metric) {
         try {
-            Uri sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+            Uri sound = configuredUsageAlertSound(context);
+            if (sound == null) {
+                sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+            }
             if (sound == null) {
                 DiagnosticLog.warn(context, "now_bar", "reset_sound_unavailable",
                         "metric", metric == null ? "" : metric);
@@ -232,6 +242,24 @@ public final class NowBarResetReminder {
         } catch (RuntimeException exception) {
             DiagnosticLog.error(context, "now_bar", "reset_sound_failed", exception,
                     "metric", metric == null ? "" : metric);
+        }
+    }
+
+    private static Uri configuredUsageAlertSound(Context context) {
+        try {
+            ResetNotificationManager.ensureChannel(context);
+            NotificationManager manager = (NotificationManager)
+                    context.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (manager == null) return null;
+            String style = ResetAlertPreferences.getStyle(context);
+            String channelId = ResetAlertPreferences.STYLE_ALARM.equals(style)
+                    ? CHANNEL_ALARM
+                    : ResetAlertPreferences.STYLE_SILENT.equals(style)
+                    ? CHANNEL_SILENT : CHANNEL_NOTIFY;
+            NotificationChannel channel = manager.getNotificationChannel(channelId);
+            return channel == null ? null : channel.getSound();
+        } catch (RuntimeException ignored) {
+            return null;
         }
     }
 
