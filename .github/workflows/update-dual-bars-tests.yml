@@ -1,0 +1,44 @@
+name: Update dual bars regression checks
+
+on:
+  push:
+    branches:
+      - feature/dual-bars-persistent-monitor
+    paths:
+      - '.github/workflows/update-dual-bars-tests.yml'
+
+jobs:
+  patch-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Update source-level regression checks
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('android/run-tests.sh')
+          s = p.read_text()
+          old = '''grep -q 'setDeleteIntent(stopIntent)' \\
+  "$ROOT/app/src/main/java/dev/bennett/codexmeter/NowBarManager.java"\n'''
+          new = '''grep -q 'setDeleteIntent(dismissedIntent)' \\
+  "$ROOT/app/src/main/java/dev/bennett/codexmeter/NowBarManager.java"\ngrep -q 'ACTION_DISMISSED' \\
+  "$ROOT/app/src/main/java/dev/bennett/codexmeter/NowBarManager.java"\ngrep -q 'onUserDismissed' \\
+  "$ROOT/app/src/main/java/dev/bennett/codexmeter/NowBarManager.java"\ngrep -q 'onScheduledEnd' \\
+  "$ROOT/app/src/main/java/dev/bennett/codexmeter/NowBarActionReceiver.java"\ntest -f "$ROOT/app/src/main/res/layout/notification_usage_dual_bars.xml"\ngrep -q '#70A7FF' "$ROOT/app/src/main/res/layout/notification_usage_dual_bars.xml"\ngrep -q '#F4B95F' "$ROOT/app/src/main/res/layout/notification_usage_dual_bars.xml"\ngrep -q 'buildDualUsageContentView' \\
+  "$ROOT/app/src/main/java/dev/bennett/codexmeter/NowBarManager.java"\n'''
+          if old not in s:
+              raise SystemExit('old delete-intent regression check not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Commit and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "Kopandazavr"
+          git config user.email "101416382+Kopandazavr@users.noreply.github.com"
+          git rm .github/workflows/update-dual-bars-tests.yml
+          git add android/run-tests.sh
+          git commit -m "Update live monitor regression checks for persistent dual bars"
+          git push
