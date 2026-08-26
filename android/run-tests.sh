@@ -488,7 +488,7 @@ grep -q 'applySamsungCompatibility' \
   "$ROOT/app/src/main/java/dev/bennett/codexmeter/NowBarManager.java"
 grep -q 'NowBarDisplayMode.ANDROID_LIVE_UPDATE' \
   "$ROOT/app/src/main/java/dev/bennett/codexmeter/NowBarManager.java"
-grep -q 'setDeleteIntent(stopIntent)' \
+grep -q 'setDeleteIntent(dismissedIntent)' \
   "$ROOT/app/src/main/java/dev/bennett/codexmeter/NowBarManager.java"
 grep -q 'FLAG_PROMOTED_ONGOING' \
   "$ROOT/app/src/main/java/dev/bennett/codexmeter/NowBarManager.java"
