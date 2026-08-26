@@ -59,6 +59,14 @@ public final class UsageApi {
                 }
                 UsageHistoryRecorder.record(context, usageSnapshot);
                 PhoneWearSync.pushUsage(context, usageSnapshot);
+                try {
+                    // Subscription metadata is display-only. It is cached for hours and falls
+                    // back to JWT claims when the internal ChatGPT endpoint is unavailable.
+                    SubscriptionApi.refreshAndCacheLocked(context, authTokens);
+                } catch (RuntimeException exception) {
+                    DiagnosticLog.error(context, "refresh", "subscription_side_refresh_failed",
+                            exception);
+                }
                 NowBarManager.onUsageUpdated(context, usageSnapshot);
                 ResetNotificationManager.onUsageUpdated(context, previousSnapshot, usageSnapshot);
                 try {
