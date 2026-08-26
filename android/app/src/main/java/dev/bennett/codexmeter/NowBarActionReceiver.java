@@ -13,14 +13,21 @@ public final class NowBarActionReceiver extends BroadcastReceiver {
             NowBarManager.stop(context, true);
         } else if (NowBarManager.ACTION_END.equals(action)) {
             NowBarManager.onScheduledEnd(context);
+            DualUsageNotificationManager.repostDelayed(context, 450L);
         } else if (NowBarManager.ACTION_REFRESH.equals(action)) {
             RefreshScheduler.scheduleImmediate(context);
         } else if (NowBarManager.ACTION_DISMISSED.equals(action)) {
+            // The framework can still send deleteIntent when SystemUI clears/rebuilds the card.
+            // Let NowBarManager repair its state first, then make our compact card the last post.
             NowBarManager.onUserDismissed(context);
+            DualUsageNotificationManager.repostDelayed(context, 500L);
         } else if (NowBarResetReminder.ACTION_TOGGLE.equals(action)) {
             NowBarResetReminder.toggleFromIntent(context, intent);
+            // toggleFromIntent reposts the native template; replace it after the bell state flips.
+            DualUsageNotificationManager.repostDelayed(context, 150L);
         } else if (NowBarResetReminder.ACTION_FIRE.equals(action)) {
             NowBarResetReminder.fireFromIntent(context, intent);
+            DualUsageNotificationManager.repostDelayed(context, 500L);
         }
     }
 }
