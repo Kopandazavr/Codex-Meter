@@ -53,6 +53,7 @@ final class DualUsageNotificationManager {
             focus = NowBarPercentMode.lowerRemainingFocus(fiveHour, longWindow);
         }
         UsageWindow paceWindow = NowBarPercentMode.selectWindow(focus, fiveHour, longWindow);
+        String fiveResetTime = formatResetTime(fiveHour, observedAt);
         String longResetTime = formatResetTime(longWindow, observedAt);
 
         try {
@@ -79,13 +80,15 @@ final class DualUsageNotificationManager {
         Icon stopIcon = Icon.createWithResource(context, R.drawable.ic_notification);
         Icon refreshIcon = Icon.createWithResource(context, R.drawable.ic_refresh);
         RemoteViews compact = buildViews(context, fiveHour, longWindow, longLabel,
-                observedAt, now, planText, longResetTime);
+                observedAt, now, planText, fiveResetTime, longResetTime);
         RemoteViews expanded = buildViews(context, fiveHour, longWindow, longLabel,
-                observedAt, now, planText, longResetTime);
+                observedAt, now, planText, fiveResetTime, longResetTime);
 
         String fiveText = NowBarCopy.limitText("5-hour", fiveHour, observedAt, now);
         String longText = NowBarCopy.limitText(longLabel, longWindow, observedAt, now);
-        String fallbackText = fiveText + " · " + longText
+        String fallbackText = fiveText
+                + (fiveResetTime.isEmpty() ? "" : " · 5-hour reset: " + fiveResetTime)
+                + " · " + longText
                 + (longResetTime.isEmpty() ? ""
                 : " · " + longLabel + " reset: " + longResetTime);
         Notification.Builder builder = new Notification.Builder(context, CHANNEL_ID)
@@ -122,6 +125,7 @@ final class DualUsageNotificationManager {
                     "five_hour", fiveHour != null,
                     "long_window", longWindow != null,
                     "plan_expiry", subscription != null && subscription.activeUntilMillis > 0L,
+                    "five_hour_reset", fiveHour != null && !fiveResetTime.isEmpty(),
                     "long_reset", longWindow != null && !longResetTime.isEmpty());
             return true;
         } catch (RuntimeException exception) {
@@ -145,7 +149,7 @@ final class DualUsageNotificationManager {
 
     private static RemoteViews buildViews(Context context, UsageWindow fiveHour,
             UsageWindow longWindow, String longLabel, long observedAt, long now,
-            String planText, String longResetTime) {
+            String planText, String fiveResetTime, String longResetTime) {
         RemoteViews views = new RemoteViews(context.getPackageName(),
                 R.layout.notification_usage_dual_bars);
         int textColor = (context.getResources().getConfiguration().uiMode
@@ -164,8 +168,9 @@ final class DualUsageNotificationManager {
             views.setViewVisibility(R.id.notification_five_row, View.GONE);
         } else {
             views.setViewVisibility(R.id.notification_five_row, View.VISIBLE);
-            views.setTextViewText(R.id.notification_five_text,
-                    NowBarCopy.limitText("5-hour", fiveHour, observedAt, now));
+            String fiveText = NowBarCopy.limitText("5-hour", fiveHour, observedAt, now);
+            if (!fiveResetTime.isEmpty()) fiveText += " · reset " + fiveResetTime;
+            views.setTextViewText(R.id.notification_five_text, fiveText);
             views.setTextColor(R.id.notification_five_text, textColor);
             views.setProgressBar(R.id.notification_five_progress, 100,
                     fiveHour.remainingPercent(), false);
