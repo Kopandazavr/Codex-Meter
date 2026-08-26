@@ -1,6 +1,8 @@
 package dev.bennett.codexmeter;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.Base64;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -62,7 +64,7 @@ public final class JwtClaims {
                     root, auth,
                     "chatgpt_subscription_active_until",
                     "subscription_active_until");
-            long activeUntilMillis = SubscriptionApi.parseTimestamp(activeUntil);
+            long activeUntilMillis = parseTimestamp(activeUntil);
             return new JwtClaims(accountId, root.optString("email", ""),
                     planType, activeUntilMillis);
         } catch (Exception ignored) {
@@ -76,6 +78,30 @@ public final class JwtClaims {
             if (auth != null && auth.has(key) && !auth.isNull(key)) return auth.opt(key);
         }
         return null;
+    }
+
+    private static long parseTimestamp(Object value) {
+        if (value == null || value == JSONObject.NULL) return 0L;
+        if (value instanceof Number) {
+            long raw = ((Number) value).longValue();
+            return raw > 0L && raw < 100000000000L ? raw * 1000L : Math.max(0L, raw);
+        }
+        String text = String.valueOf(value).trim();
+        if (text.isEmpty()) return 0L;
+        try {
+            long raw = Long.parseLong(text);
+            return raw > 0L && raw < 100000000000L ? raw * 1000L : Math.max(0L, raw);
+        } catch (NumberFormatException ignored) {
+        }
+        try {
+            return Instant.parse(text).toEpochMilli();
+        } catch (Exception ignored) {
+        }
+        try {
+            return OffsetDateTime.parse(text).toInstant().toEpochMilli();
+        } catch (Exception ignored) {
+            return 0L;
+        }
     }
 
     private static JwtClaims empty() {
