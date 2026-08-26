@@ -1,0 +1,28 @@
+name: Fix dual bars regression check
+
+on:
+  push:
+    branches:
+      - feature/dual-bars-persistent-monitor
+    paths:
+      - '.github/workflows/fix-dual-bars-regression.yml'
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Update obsolete delete-intent check
+        shell: bash
+        run: python3 -c "from pathlib import Path; p=Path('android/run-tests.sh'); s=p.read_text(); old='setDeleteIntent(stopIntent)'; assert old in s; p.write_text(s.replace(old,'setDeleteIntent(dismissedIntent)',1))"
+      - name: Commit patch and remove this workflow
+        shell: bash
+        run: |
+          git config user.name "Kopandazavr"
+          git config user.email "101416382+Kopandazavr@users.noreply.github.com"
+          git rm .github/workflows/fix-dual-bars-regression.yml
+          git add android/run-tests.sh
+          git commit -m "Update regression check for persistent notification dismissal"
+          git push
