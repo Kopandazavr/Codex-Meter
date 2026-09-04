@@ -43,6 +43,23 @@
                 android:targetPackage="dev.bennett.codexmeter"
                 android:targetClass="dev.bennett.codexmeter.CalendarPermissionActivity" />
         </Preference>
+        <ListPreference
+            android:defaultValue="5"
+            android:entries="@array/idle_reminder_cadence_entries"
+            android:entryValues="@array/idle_reminder_cadence_values"
+            android:key="idle_reminder_cadence_ui"
+            android:summary="How often an enabled idle role reminds you"
+            android:title="Idle reminder cadence"
+            app:useSimpleSummaryProvider="true" />
+        <Preference
+            android:key="idle_overlay_access"
+            android:summary="Allow the large idle reminder bell to appear over other apps"
+            android:title="Idle overlay access"
+            app:iconSpaceReserved="false">
+            <intent
+                android:action="android.settings.action.MANAGE_OVERLAY_PERMISSION"
+                android:data="package:dev.bennett.codexmeter" />
+        </Preference>
     </PreferenceCategory>
 
     <PreferenceCategory android:title="Automatic start">
@@ -80,5 +97,4 @@
             android:title="Start sample preview"
             app:iconSpaceReserved="false" />
     </PreferenceCategory>
-
 </PreferenceScreen>
