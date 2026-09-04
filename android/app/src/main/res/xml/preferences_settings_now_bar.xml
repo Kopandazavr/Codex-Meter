@@ -36,12 +36,12 @@
             app:entryValues="@array/process_notification_mode_values" />
         <Preference
             android:key="calendar_process_access"
-            android:summary="Enable Calendar permission so synced GPT watchdogs can be shown"
+            android:summary="Allow local synced GPT watchdogs to appear in notifications"
             android:title="Calendar access"
             app:iconSpaceReserved="false">
             <intent
-                android:action="android.settings.APPLICATION_DETAILS_SETTINGS"
-                android:data="package:dev.bennett.codexmeter" />
+                android:targetPackage="dev.bennett.codexmeter"
+                android:targetClass="dev.bennett.codexmeter.CalendarPermissionActivity" />
         </Preference>
     </PreferenceCategory>
 
