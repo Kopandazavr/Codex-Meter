@@ -172,41 +172,39 @@ public final class OnboardingActivity extends AppCompatActivity {
         this.page.toolbar.setShowNavigationButtonAsBack(false);
 
         TextView title = Ui.title(this, "Ready in a minute", this.dark);
-        title.setTextSize(30.0f);
+        title.setTextSize(28.0f);
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(-1, -2);
-        titleParams.setMargins(Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 8), 0);
+        titleParams.setMargins(Ui.dp(this, 8), Ui.dp(this, 2), Ui.dp(this, 8), 0);
         this.content.addView(title, titleParams);
 
         TextView intro = Ui.text(this,
-                "Connect ChatGPT, allow the two system permissions you need, and turn on the "
-                        + "live monitor. Everything else can be changed later in Settings.",
-                15.0f, Ui.secondaryText(this.dark));
+                "Connect ChatGPT, allow notifications and Calendar, then turn on Live monitor. "
+                        + "Everything else stays in Settings.",
+                14.0f, Ui.secondaryText(this.dark));
         LinearLayout.LayoutParams introParams = new LinearLayout.LayoutParams(-1, -2);
-        introParams.setMargins(Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 18));
+        introParams.setMargins(Ui.dp(this, 8), Ui.dp(this, 6), Ui.dp(this, 8), Ui.dp(this, 10));
         this.content.addView(intro, introParams);
 
         RoundedLinearLayout setup = Ui.seslRowCard(this, this.dark);
         CardItemView account = Ui.actionRow(this, "ChatGPT account", accountSummary(),
                 R.drawable.ic_oui_contact_outline, view -> startSignIn());
-        account.setShowBottomDivider(true);
-        setup.addView(account);
+        addSetupRow(setup, account, true);
 
         CardItemView notifications = Ui.actionRow(this, "Notifications", notificationSummary(),
                 R.drawable.ic_oui_notification, view -> requestNotificationAccess(false));
-        notifications.setShowBottomDivider(true);
-        setup.addView(notifications);
+        addSetupRow(setup, notifications, true);
 
         CardItemView calendar = Ui.actionRow(this, "Calendar processes", calendarSummary(),
                 R.drawable.ic_oui_calendar_week, view -> requestCalendarAccess());
-        calendar.setShowBottomDivider(true);
-        setup.addView(calendar);
+        addSetupRow(setup, calendar, true);
 
-        setup.addView(Ui.actionRow(this, "Live monitor", monitorSummary(),
-                R.drawable.ic_oui_time, view -> enableLiveMonitor()));
+        CardItemView monitor = Ui.actionRow(this, "Live monitor", monitorSummary(),
+                R.drawable.ic_oui_time, view -> enableLiveMonitor());
+        addSetupRow(setup, monitor, false);
         this.content.addView(setup);
 
         if (!this.authMessage.isEmpty()) {
-            Ui.addSpacer(this.content, 12);
+            Ui.addSpacer(this.content, 8);
             TextView status = Ui.text(this, this.authMessage, 13.0f,
                     Ui.secondaryText(this.dark));
             LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(-1, -2);
@@ -216,8 +214,8 @@ public final class OnboardingActivity extends AppCompatActivity {
 
         Button done = Ui.nativePrimaryButton(this, "Open Codex Meter");
         done.setOnClickListener(view -> completeAndOpenMain());
-        LinearLayout.LayoutParams doneParams = new LinearLayout.LayoutParams(-1, Ui.dp(this, 58));
-        doneParams.setMargins(0, Ui.dp(this, 22), 0, Ui.dp(this, 8));
+        LinearLayout.LayoutParams doneParams = new LinearLayout.LayoutParams(-1, Ui.dp(this, 54));
+        doneParams.setMargins(0, Ui.dp(this, 12), 0, Ui.dp(this, 4));
         this.content.addView(done, doneParams);
 
         Ui.addSpacer(this.content, 20);
@@ -233,6 +231,11 @@ public final class OnboardingActivity extends AppCompatActivity {
         scroll.post(() -> scroll.scrollTo(0, 0));
     }
 
+    private void addSetupRow(RoundedLinearLayout setup, CardItemView row, boolean divider) {
+        row.setShowBottomDivider(divider);
+        setup.addView(row, new LinearLayout.LayoutParams(-1, Ui.dp(this, 68)));
+    }
+
     private String accountSummary() {
         if (!SecureTokenStore.isSignedIn(this)) {
             return AppPreferences.isOAuthPending(this)
@@ -246,14 +249,14 @@ public final class OnboardingActivity extends AppCompatActivity {
 
     private String notificationSummary() {
         return hasNotificationPermission()
-                ? "Allowed" : "Tap to allow usage and process notifications";
+                ? "Allowed" : "Tap to allow usage and process alerts";
     }
 
     private String calendarSummary() {
         return checkSelfPermission(Manifest.permission.READ_CALENDAR)
                 == PackageManager.PERMISSION_GRANTED
                 ? "Allowed · reads locally synced GPT watchdogs"
-                : "Tap to allow local synced watchdogs";
+                : "Tap to allow local GPT watchdogs";
     }
 
     private String monitorSummary() {
@@ -261,7 +264,7 @@ public final class OnboardingActivity extends AppCompatActivity {
         if (QuickSetupPreferences.shouldStartMonitor(this)) {
             return "Waiting for the first usage refresh";
         }
-        return "Tap to keep limits and active processes in the notification shade";
+        return "Tap to keep limits and processes live";
     }
 
     private void startSignIn() {
