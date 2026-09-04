@@ -143,7 +143,11 @@
                 android:value="Temporary user-visible idle reminder bell overlay" />
         </service>
         <service android:name="dev.bennett.codexmeter.wear.PhoneWearListenerService" android:exported="true">
-            <intent-filter><action android:name="com.google.android.gms.wearable.BIND_LISTENER"/></intent-filter>
+            <intent-filter>
+                <action
+                    android:name="com.google.android.gms.wearable.BIND_LISTENER"
+                    tools:ignore="WearableBindListener"/>
+            </intent-filter>
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.DATA_CHANGED"/>
                 <data android:scheme="wear" android:host="*" android:pathPrefix="/codex"/>
