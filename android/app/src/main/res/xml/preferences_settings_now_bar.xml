@@ -28,6 +28,23 @@
             app:useSimpleSummaryProvider="true" />
     </PreferenceCategory>
 
+    <PreferenceCategory android:title="Long-running processes">
+        <dev.oneuiproject.oneui.preference.HorizontalRadioPreference
+            android:defaultValue="combined"
+            android:key="process_notification_mode_ui"
+            app:entries="@array/process_notification_mode_entries"
+            app:entryValues="@array/process_notification_mode_values" />
+        <Preference
+            android:key="calendar_process_access"
+            android:summary="Enable Calendar permission so synced GPT watchdogs can be shown"
+            android:title="Calendar access"
+            app:iconSpaceReserved="false">
+            <intent
+                android:action="android.settings.APPLICATION_DETAILS_SETTINGS"
+                android:data="package:dev.bennett.codexmeter" />
+        </Preference>
+    </PreferenceCategory>
+
     <PreferenceCategory android:title="Automatic start">
         <SwitchPreferenceCompat
             android:key="now_bar_auto_start_ui"
