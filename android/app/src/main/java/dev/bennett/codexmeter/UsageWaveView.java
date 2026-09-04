@@ -16,6 +16,7 @@ import androidx.appcompat.content.res.AppCompatResources;
 public final class UsageWaveView extends View {
     private static final long NORMAL_WAVE_DURATION_MS = 2400L;
     private static final long WARNING_WAVE_DURATION_MS = 950L;
+    private static final int WEEKLY_YELLOW = 0xFFFFC107;
     private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint trackPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint titlePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -31,6 +32,7 @@ public final class UsageWaveView extends View {
     private String pace = "";
     private int percent;
     private boolean warning;
+    private boolean weekly;
     private float phase;
     private float phaseOffset;
 
@@ -54,6 +56,7 @@ public final class UsageWaveView extends View {
         percent = Math.max(0, Math.min(100, remainingPercent));
         pace = paceEstimate == null ? "" : paceEstimate;
         warning = acceleratedWarning;
+        weekly = "Weekly".equals(label);
         if (animator != null) {
             animator.setDuration(warning ? WARNING_WAVE_DURATION_MS : NORMAL_WAVE_DURATION_MS);
         }
@@ -123,10 +126,12 @@ public final class UsageWaveView extends View {
         fillPath.lineTo(0, getHeight());
         fillPath.close();
         fillPaint.setColor(warning ? Ui.warning(dark)
+                : weekly ? WEEKLY_YELLOW
                 : Ui.desaturatedAccent(getContext(), dark));
         canvas.drawPath(fillPath, fillPaint);
 
-        int foreground = warning ? (dark ? 0xFFFFFFFF : 0xFF000000) : Ui.mainText(dark);
+        int foreground = warning ? (dark ? 0xFFFFFFFF : 0xFF000000)
+                : weekly ? 0xFF000000 : Ui.mainText(dark);
         titlePaint.setColor(foreground);
         titlePaint.setTextSize(20f * density);
         // Reset duration must match title/percent contrast (black light / white dark).
