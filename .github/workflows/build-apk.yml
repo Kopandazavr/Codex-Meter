@@ -74,9 +74,6 @@ jobs:
           if [[ "$VERSION_NAME" == *-* ]]; then
             PRERELEASE=true
           fi
-          # Channel invariant: alpha builds must reuse the newest stable versionCode so the
-          # in-app "return to stable" install is never an Android downgrade, and stable
-          # releases must strictly increase it.
           VERSION_CODE="$(awk '/versionCode = / { print $3; exit }' app/build.gradle.kts)"
           if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
             LATEST_STABLE_TAG="$(git tag -l 'v*' | grep -v -- - \
@@ -103,6 +100,7 @@ jobs:
         run: |
           set -euo pipefail
           ./run-tests.sh
+          bash ./tests/idle-reminders-source-test.sh
 
       - name: Run Android lint
         shell: bash
