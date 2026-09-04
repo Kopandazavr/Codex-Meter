@@ -8,15 +8,28 @@
         app:allowDividerAbove="false"
         app:allowDividerBelow="false" />
 
-    <PreferenceCategory android:title="General">
+    <PreferenceCategory android:title="Dashboard">
+        <!-- Keep legacy page keys in the tree so old SettingsActivity summary/binding code stays
+             null-safe, but remove them from the user-facing settings surface. -->
         <Preference
             android:key="settings_appearance"
             android:title="Appearance"
-            app:iconSpaceReserved="false" />
+            app:iconSpaceReserved="false"
+            app:isPreferenceVisible="false" />
         <Preference
             android:key="settings_refresh_usage"
             android:title="Refresh &amp; usage"
-            app:iconSpaceReserved="false" />
+            app:iconSpaceReserved="false"
+            app:isPreferenceVisible="false" />
+        <Preference
+            android:key="dashboard_reorder_root"
+            android:summary="Arrange the dashboard from one place"
+            android:title="Edit dashboard"
+            app:iconSpaceReserved="false">
+            <intent
+                android:targetPackage="dev.bennett.codexmeter"
+                android:targetClass="dev.bennett.codexmeter.DashboardReorderActivity" />
+        </Preference>
     </PreferenceCategory>
 
     <PreferenceCategory android:title="Features">
