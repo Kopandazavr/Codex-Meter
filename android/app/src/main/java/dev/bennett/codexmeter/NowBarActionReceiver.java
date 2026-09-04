@@ -11,6 +11,7 @@ public final class NowBarActionReceiver extends BroadcastReceiver {
         String action = intent == null ? "" : intent.getAction();
         if (NowBarManager.ACTION_STOP.equals(action)) {
             NowBarManager.stop(context, true);
+            ProcessNotificationManager.clearAll(context);
         } else if (NowBarManager.ACTION_END.equals(action)) {
             NowBarManager.onScheduledEnd(context);
             DualUsageNotificationManager.repostDelayed(context, 450L);
