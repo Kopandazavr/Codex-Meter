@@ -52,6 +52,9 @@
             android:name="dev.bennett.codexmeter.SettingsActivity"
             android:exported="false"/>
         <activity
+            android:name="dev.bennett.codexmeter.CalendarPermissionActivity"
+            android:exported="false"/>
+        <activity
             android:name="dev.bennett.codexmeter.UpdateActivity"
             android:configChanges="orientation|screenSize"
             android:exported="false"/>
