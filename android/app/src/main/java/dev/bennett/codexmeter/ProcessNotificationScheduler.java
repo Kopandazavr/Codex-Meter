@@ -34,7 +34,7 @@ final class ProcessNotificationScheduler {
                 alarms.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP,
                         triggerAt, refresh);
             }
-        } catch (SecurityException | RuntimeException exception) {
+        } catch (RuntimeException exception) {
             DiagnosticLog.warn(context, "calendar_process", "refresh_schedule_failed",
                     "error", exception.getClass().getSimpleName());
         }
