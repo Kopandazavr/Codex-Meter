@@ -91,6 +91,7 @@ public final class UsageRefreshJobService extends JobService {
                     AppPreferences.recordRefreshSuccess(
                             UsageRefreshJobService.this.getApplicationContext());
                     WidgetRenderer.updateAll(UsageRefreshJobService.this.getApplicationContext());
+                    ContextStartMonitor.startIfRequested(UsageRefreshJobService.this.getApplicationContext());
                     DiagnosticLog.info(UsageRefreshJobService.this, "scheduler",
                             "refresh_job_succeeded",
                             "job_id", this.params.getJobId(),
@@ -135,6 +136,20 @@ public final class UsageRefreshJobService extends JobService {
                     }
                 }
                 throw th;
+            }
+        }
+    }
+
+    private static final class ContextStartMonitor {
+        private ContextStartMonitor() {
+        }
+
+        static void startIfRequested(android.content.Context context) {
+            if (!QuickSetupPreferences.shouldStartMonitor(context)) return;
+            if (NowBarManager.start(context)) {
+                QuickSetupPreferences.clearMonitorStart(context);
+                DualUsageNotificationManager.repostDelayed(context, 200L);
+                DiagnosticLog.info(context, "quick_setup", "live_monitor_started_after_refresh");
             }
         }
     }
