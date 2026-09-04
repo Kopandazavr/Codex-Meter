@@ -11,7 +11,9 @@ import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
@@ -60,7 +62,7 @@ public final class IdleReminderOverlayService extends Service {
     static void dismiss(Context context, String key) {
         IdleReminderOverlayService service = running;
         if (service == null || key == null) return;
-        service.getMainExecutor().execute(() -> service.removeRole(key));
+        new Handler(Looper.getMainLooper()).post(() -> service.removeRole(key));
     }
 
     @Override
