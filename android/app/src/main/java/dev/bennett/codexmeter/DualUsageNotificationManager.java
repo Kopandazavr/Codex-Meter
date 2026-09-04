@@ -18,14 +18,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 
-/**
- * Notification-shade presentation for the live monitor.
- *
- * <p>Android ProgressStyle and Samsung's ongoing-activity template both expose one native
- * progress track. This renderer deliberately replaces that shade card with a compact custom
- * layout containing both allowance windows. The monitor state, alarms, actions, and reset
- * reminder remain owned by {@link NowBarManager}.</p>
- */
+/** Notification-shade presentation for the live monitor. */
 final class DualUsageNotificationManager {
     private static final String CHANNEL_ID = "codex_live_monitor_v2";
     private static final int NOTIFICATION_ID = 8610;
@@ -50,14 +43,16 @@ final class DualUsageNotificationManager {
 
         String longLabel = snapshot.longWindowIsMonthly() ? "Monthly" : "Weekly";
         String focus = NowBarManager.activeFocusMetric(context);
-        if (focus == null) {
-            focus = NowBarPercentMode.lowerRemainingFocus(fiveHour, longWindow);
-        }
+        if (focus == null) focus = NowBarPercentMode.lowerRemainingFocus(fiveHour, longWindow);
         UsageWindow paceWindow = NowBarPercentMode.selectWindow(focus, fiveHour, longWindow);
         String fiveResetTime = formatResetTime(fiveHour, observedAt);
         String longResetTime = formatResetTime(longWindow, observedAt);
         String processMode = ProcessNotificationMode.current(context);
         List<CalendarProcess> processes = CalendarProcessReader.active(context, now);
+        List<CalendarProcess> finished = CalendarProcessReader.recentlyFinished(context, now);
+        List<IdleProcessState.IdleRole> idleRoles =
+                IdleProcessState.synchronize(context, processes, finished, now);
+        IdleReminderManager.sync(context, processes, idleRoles, now);
 
         try {
             SubscriptionStore.seedFromJwt(context, SecureTokenStore.load(context), now);
@@ -84,20 +79,15 @@ final class DualUsageNotificationManager {
         Icon refreshIcon = Icon.createWithResource(context, R.drawable.ic_refresh);
         RemoteViews compact = buildViews(context, R.layout.notification_usage_dual_bars,
                 fiveHour, longWindow, longLabel, observedAt, now, planText,
-                fiveResetTime, longResetTime, null, processMode);
+                fiveResetTime, longResetTime, null, null, processMode);
         RemoteViews expanded = buildViews(context, R.layout.notification_usage_dual_bars_expanded,
                 fiveHour, longWindow, longLabel, observedAt, now, planText,
-                fiveResetTime, longResetTime, processes, processMode);
+                fiveResetTime, longResetTime, processes, idleRoles, processMode);
 
         String fiveText = NowBarCopy.limitText("5-hour", fiveHour, observedAt, now);
         String longText = NowBarCopy.limitText(longLabel, longWindow, observedAt, now);
-        // Keep the platform fallback exactly as compact as the last known-good dual-bar build.
-        // Samsung's decorated custom notification can change the amount of vertical space it
-        // grants the custom RemoteViews when this fallback becomes too long. The reset timestamps
-        // belong only in the custom rows below, where they do not affect that template decision.
         String fallbackText = fiveText + " · " + longText
-                + (longResetTime.isEmpty() ? ""
-                : " · " + longLabel + " reset: " + longResetTime);
+                + (longResetTime.isEmpty() ? "" : " · " + longLabel + " reset: " + longResetTime);
         Notification.Builder builder = new Notification.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle("Codex usage")
@@ -128,7 +118,7 @@ final class DualUsageNotificationManager {
         if (manager == null) return false;
         try {
             manager.notify(NOTIFICATION_ID, builder.build());
-            ProcessNotificationManager.sync(context, processes, processMode, now);
+            ProcessNotificationManager.sync(context, processes, idleRoles, processMode, now);
             DiagnosticLog.info(context, "now_bar", "dual_notification_posted",
                     "five_hour", fiveHour != null,
                     "long_window", longWindow != null,
@@ -136,6 +126,7 @@ final class DualUsageNotificationManager {
                     "five_hour_reset", fiveHour != null && !fiveResetTime.isEmpty(),
                     "long_reset", longWindow != null && !longResetTime.isEmpty(),
                     "process_count", processes.size(),
+                    "idle_count", idleRoles.size(),
                     "process_mode", processMode);
             return true;
         } catch (RuntimeException exception) {
@@ -164,7 +155,8 @@ final class DualUsageNotificationManager {
     private static RemoteViews buildViews(Context context, int layoutId,
             UsageWindow fiveHour, UsageWindow longWindow, String longLabel,
             long observedAt, long now, String planText, String fiveResetTime,
-            String longResetTime, List<CalendarProcess> processes, String processMode) {
+            String longResetTime, List<CalendarProcess> processes,
+            List<IdleProcessState.IdleRole> idleRoles, String processMode) {
         RemoteViews views = new RemoteViews(context.getPackageName(), layoutId);
         int textColor = (context.getResources().getConfiguration().uiMode
                 & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
@@ -204,13 +196,14 @@ final class DualUsageNotificationManager {
 
         if (layoutId == R.layout.notification_usage_dual_bars_expanded) {
             boolean showProcesses = ProcessNotificationMode.COMBINED.equals(processMode)
-                    && processes != null && !processes.isEmpty();
+                    && ((processes != null && !processes.isEmpty())
+                    || (idleRoles != null && !idleRoles.isEmpty()));
             views.setViewVisibility(R.id.notification_process_section,
                     showProcesses ? View.VISIBLE : View.GONE);
             if (showProcesses) {
                 views.setTextColor(R.id.notification_process_section_title, textColor);
                 ProcessNotificationManager.addRows(context, views,
-                        R.id.notification_process_container, processes, now);
+                        R.id.notification_process_container, processes, idleRoles, now);
             }
         }
         return views;
