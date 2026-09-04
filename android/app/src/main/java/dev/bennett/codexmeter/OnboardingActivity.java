@@ -10,6 +10,8 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -26,6 +28,11 @@ public final class OnboardingActivity extends AppCompatActivity {
     public static final String EXTRA_AUTH_RETURN = "oauth_return";
     private static final int REQUEST_NOTIFICATIONS = 8601;
     private static final int REQUEST_CALENDAR = 8603;
+    private static final int STATUS_GREEN_LIGHT = 0xFF16843D;
+    private static final int STATUS_GREEN_DARK = 0xFF6EDC8C;
+    private static final int STATUS_RED_LIGHT = 0xFFD32F2F;
+    private static final int STATUS_RED_DARK = 0xFFFF6B6B;
+    private static final int STATUS_YELLOW = 0xFFFFC107;
 
     private LinearLayout content;
     private Ui.Page page;
@@ -60,6 +67,7 @@ public final class OnboardingActivity extends AppCompatActivity {
                     authMessage = message == null || message.trim().isEmpty()
                             ? "Sign-in did not complete. Please try again."
                             : message;
+                    Toast.makeText(OnboardingActivity.this, authMessage, Toast.LENGTH_LONG).show();
                 }
                 render();
             }
@@ -124,6 +132,7 @@ public final class OnboardingActivity extends AppCompatActivity {
         } catch (RuntimeException exception) {
             this.receiverRegistered = false;
             this.authMessage = "Sign-in updates are unavailable: " + safeMessage(exception);
+            Toast.makeText(this, this.authMessage, Toast.LENGTH_LONG).show();
             render();
         }
     }
@@ -153,6 +162,7 @@ public final class OnboardingActivity extends AppCompatActivity {
         boolean granted = grantResults.length > 0
                 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
         if (requestCode == REQUEST_NOTIFICATIONS) {
+            if (granted) ensureNotificationFeatureDefault();
             if (granted && this.startMonitorAfterNotificationPermission) {
                 this.startMonitorAfterNotificationPermission = false;
                 enableLiveMonitor();
@@ -167,14 +177,20 @@ public final class OnboardingActivity extends AppCompatActivity {
 
     private void render() {
         if (this.content == null) return;
+        ensureNotificationFeatureDefault();
         this.content.removeAllViews();
         this.page.toolbar.setTitle("Quick setup");
         this.page.toolbar.setShowNavigationButtonAsBack(false);
 
+        // fillViewport=true on the dashboard scroll lets this spacer consume only real spare
+        // height. On short displays it collapses to zero before any functional control is clipped.
+        View flexibleTop = new View(this);
+        this.content.addView(flexibleTop, new LinearLayout.LayoutParams(-1, 0, 1.0f));
+
         TextView title = Ui.title(this, "Ready in a minute", this.dark);
         title.setTextSize(28.0f);
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(-1, -2);
-        titleParams.setMargins(Ui.dp(this, 8), Ui.dp(this, 2), Ui.dp(this, 8), 0);
+        titleParams.setMargins(Ui.dp(this, 8), 0, Ui.dp(this, 8), 0);
         this.content.addView(title, titleParams);
 
         TextView intro = Ui.text(this,
@@ -186,46 +202,43 @@ public final class OnboardingActivity extends AppCompatActivity {
         this.content.addView(intro, introParams);
 
         RoundedLinearLayout setup = Ui.seslRowCard(this, this.dark);
-        CardItemView account = Ui.actionRow(this, "ChatGPT account", accountSummary(),
+
+        String accountState = accountSummary();
+        CardItemView account = Ui.actionRow(this, "ChatGPT account", accountState,
                 R.drawable.ic_oui_contact_outline, view -> startSignIn());
+        setMatchingTextColor(account, accountState,
+                SecureTokenStore.isSignedIn(this) ? statusGreen() : statusRed());
         addSetupRow(setup, account, true);
 
-        CardItemView notifications = Ui.actionRow(this, "Notifications", notificationSummary(),
+        String notificationState = notificationSummary();
+        CardItemView notifications = Ui.actionRow(this, "Notifications", notificationState,
                 R.drawable.ic_oui_notification, view -> requestNotificationAccess(false));
+        setMatchingTextColor(notifications, notificationState,
+                hasNotificationPermission() ? statusGreen() : STATUS_YELLOW);
         addSetupRow(setup, notifications, true);
 
-        CardItemView calendar = Ui.actionRow(this, "Calendar processes", calendarSummary(),
+        boolean calendarAllowed = checkSelfPermission(Manifest.permission.READ_CALENDAR)
+                == PackageManager.PERMISSION_GRANTED;
+        String calendarState = calendarSummary();
+        CardItemView calendar = Ui.actionRow(this, "Calendar processes", calendarState,
                 R.drawable.ic_oui_calendar_week, view -> requestCalendarAccess());
+        setMatchingTextColor(calendar, calendarState,
+                calendarAllowed ? statusGreen() : STATUS_YELLOW);
         addSetupRow(setup, calendar, true);
 
-        CardItemView monitor = Ui.actionRow(this, "Live monitor", monitorSummary(),
+        String monitorState = monitorSummary();
+        CardItemView monitor = Ui.actionRow(this, "Live monitor", monitorState,
                 R.drawable.ic_oui_time, view -> enableLiveMonitor());
+        setMatchingTextColor(monitor, monitorState,
+                NowBarManager.isActive(this) ? statusGreen() : STATUS_YELLOW);
         addSetupRow(setup, monitor, false);
         this.content.addView(setup);
-
-        if (!this.authMessage.isEmpty()) {
-            Ui.addSpacer(this.content, 8);
-            TextView status = Ui.text(this, this.authMessage, 13.0f,
-                    Ui.secondaryText(this.dark));
-            LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(-1, -2);
-            statusParams.setMargins(Ui.dp(this, 8), 0, Ui.dp(this, 8), 0);
-            this.content.addView(status, statusParams);
-        }
 
         Button done = Ui.nativePrimaryButton(this, "Open Codex Meter");
         done.setOnClickListener(view -> completeAndOpenMain());
         LinearLayout.LayoutParams doneParams = new LinearLayout.LayoutParams(-1, Ui.dp(this, 54));
-        doneParams.setMargins(0, Ui.dp(this, 12), 0, Ui.dp(this, 4));
+        doneParams.setMargins(0, Ui.dp(this, 10), 0, 0);
         this.content.addView(done, doneParams);
-
-        Ui.addSpacer(this.content, 20);
-        TextView more = Ui.text(this,
-                "Widgets, alerts, usage history and detailed display options remain available "
-                        + "inside the app when you want them.",
-                12.0f, Ui.secondaryText(this.dark));
-        LinearLayout.LayoutParams moreParams = new LinearLayout.LayoutParams(-1, -2);
-        moreParams.setMargins(Ui.dp(this, 8), Ui.dp(this, 4), Ui.dp(this, 8), Ui.dp(this, 16));
-        this.content.addView(more, moreParams);
 
         NestedScrollView scroll = findViewById(R.id.dashboard_scroll);
         scroll.post(() -> scroll.scrollTo(0, 0));
@@ -234,6 +247,27 @@ public final class OnboardingActivity extends AppCompatActivity {
     private void addSetupRow(RoundedLinearLayout setup, CardItemView row, boolean divider) {
         row.setShowBottomDivider(divider);
         setup.addView(row, new LinearLayout.LayoutParams(-1, Ui.dp(this, 68)));
+    }
+
+    private int statusGreen() {
+        return this.dark ? STATUS_GREEN_DARK : STATUS_GREEN_LIGHT;
+    }
+
+    private int statusRed() {
+        return this.dark ? STATUS_RED_DARK : STATUS_RED_LIGHT;
+    }
+
+    private void setMatchingTextColor(View view, String text, int color) {
+        if (view instanceof TextView) {
+            TextView label = (TextView) view;
+            if (text.contentEquals(label.getText())) label.setTextColor(color);
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int index = 0; index < group.getChildCount(); index++) {
+                setMatchingTextColor(group.getChildAt(index), text, color);
+            }
+        }
     }
 
     private String accountSummary() {
@@ -285,12 +319,14 @@ public final class OnboardingActivity extends AppCompatActivity {
             this.oauthRequested = false;
             AppPreferences.setOAuthPending(this, false, "");
             this.authMessage = "Could not start sign-in: " + safeMessage(exception);
+            Toast.makeText(this, this.authMessage, Toast.LENGTH_LONG).show();
             render();
         }
     }
 
     private void requestNotificationAccess(boolean forMonitor) {
         if (hasNotificationPermission()) {
+            ensureNotificationFeatureDefault();
             if (forMonitor) enableLiveMonitor();
             else Toast.makeText(this, "Notifications are already allowed.", Toast.LENGTH_SHORT).show();
             return;
@@ -304,6 +340,13 @@ public final class OnboardingActivity extends AppCompatActivity {
                     "Enable Codex Meter notifications in Android Settings.",
                     Toast.LENGTH_LONG).show();
         }
+    }
+
+    private void ensureNotificationFeatureDefault() {
+        if (!hasNotificationPermission() || ResetAlertPreferences.hasExplicitStyle(this)) return;
+        ResetAlertPreferences.save(this, ResetAlertPreferences.STYLE_NOTIFICATION,
+                ResetAlertPreferences.getMetric(this), ResetAlertPreferences.getThreshold(this));
+        ResetNotificationManager.ensureChannel(this);
     }
 
     private void requestCalendarAccess() {
@@ -358,6 +401,7 @@ public final class OnboardingActivity extends AppCompatActivity {
                 startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
             } catch (RuntimeException exception) {
                 this.authMessage = "No browser is available to complete sign-in.";
+                Toast.makeText(this, this.authMessage, Toast.LENGTH_LONG).show();
                 render();
             }
         }
@@ -365,6 +409,7 @@ public final class OnboardingActivity extends AppCompatActivity {
 
     private void completeAndOpenMain() {
         cancelPendingSignIn();
+        ensureNotificationFeatureDefault();
         AppPreferences.completeOnboarding(this);
         openMain();
     }
