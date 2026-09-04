@@ -1,7 +1,6 @@
 package dev.bennett.codexmeter;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -18,7 +17,8 @@ import org.json.JSONObject;
 final class IdleProcessState {
     private static final String PREFS = "codex_idle_process_state_v1";
     private static final String KEY_ROWS = "rows_json";
-    private static final String KEY_CADENCE = "cadence_minutes";
+    private static final String SETTINGS_PREFS = "codex_meter_settings_v1";
+    private static final String KEY_CADENCE_UI = "idle_reminder_cadence_ui";
     static final int DEFAULT_CADENCE_MINUTES = 5;
 
     private IdleProcessState() {
@@ -59,7 +59,6 @@ final class IdleProcessState {
         if (context == null) return Collections.emptyList();
         Map<String, MutableRole> rows = load(context);
         Set<String> activeKeys = new HashSet<>();
-
         if (active != null) {
             for (CalendarProcess process : active) {
                 String key = roleKey(process);
@@ -74,7 +73,6 @@ final class IdleProcessState {
                 }
             }
         }
-
         if (recentlyFinished != null) {
             for (CalendarProcess process : recentlyFinished) {
                 if (process.endMillis > nowMillis) continue;
@@ -84,10 +82,8 @@ final class IdleProcessState {
                         process.eventId, process.endMillis, context);
             }
         }
-
         for (MutableRole row : rows.values()) {
-            if (!activeKeys.contains(row.key)
-                    && row.pendingEndMillis > 0L
+            if (!activeKeys.contains(row.key) && row.pendingEndMillis > 0L
                     && row.pendingEndMillis <= nowMillis) {
                 promoteFinished(row, row.project, row.role, row.topic,
                         row.pendingEventId, row.pendingEndMillis, context);
@@ -95,15 +91,11 @@ final class IdleProcessState {
                 row.pendingEventId = 0L;
             }
         }
-
         save(context, rows);
         List<IdleRole> visible = new ArrayList<>();
         for (MutableRole row : rows.values()) {
-            if (activeKeys.contains(row.key)
-                    || row.lastFinishedMillis <= 0L
-                    || row.dismissedThroughMillis >= row.lastFinishedMillis) {
-                continue;
-            }
+            if (activeKeys.contains(row.key) || row.lastFinishedMillis <= 0L
+                    || row.dismissedThroughMillis >= row.lastFinishedMillis) continue;
             visible.add(row.freeze());
         }
         visible.sort(Comparator.comparingLong((IdleRole row) -> row.lastFinishedMillis).reversed());
@@ -128,8 +120,7 @@ final class IdleProcessState {
         MutableRole row = rows.get(clean(key));
         if (row == null) return false;
         row.reminderEnabled = !row.reminderEnabled;
-        row.nextReminderAtMillis = row.reminderEnabled
-                ? nowMillis + cadenceMillis(context) : 0L;
+        row.nextReminderAtMillis = row.reminderEnabled ? nowMillis + cadenceMillis(context) : 0L;
         save(context, rows);
         return row.reminderEnabled;
     }
@@ -143,21 +134,19 @@ final class IdleProcessState {
     }
 
     static int cadenceMinutes(Context context) {
-        int value = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .getInt(KEY_CADENCE, DEFAULT_CADENCE_MINUTES);
-        return value == 10 ? 10 : DEFAULT_CADENCE_MINUTES;
+        String value = context.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
+                .getString(KEY_CADENCE_UI, String.valueOf(DEFAULT_CADENCE_MINUTES));
+        return "10".equals(value) ? 10 : DEFAULT_CADENCE_MINUTES;
     }
 
     static void setCadenceMinutes(Context context, int minutes, long nowMillis) {
         int normalized = minutes == 10 ? 10 : DEFAULT_CADENCE_MINUTES;
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .edit().putInt(KEY_CADENCE, normalized).apply();
+        context.getSharedPreferences(SETTINGS_PREFS, Context.MODE_PRIVATE)
+                .edit().putString(KEY_CADENCE_UI, String.valueOf(normalized)).apply();
         Map<String, MutableRole> rows = load(context);
         long next = nowMillis + normalized * 60_000L;
         for (MutableRole row : rows.values()) {
-            if (row.reminderEnabled && row.lastFinishedMillis > 0L) {
-                row.nextReminderAtMillis = next;
-            }
+            if (row.reminderEnabled && row.lastFinishedMillis > 0L) row.nextReminderAtMillis = next;
         }
         save(context, rows);
     }
@@ -190,18 +179,14 @@ final class IdleProcessState {
         row.topic = clean(topic);
         row.eventId = eventId;
         row.lastFinishedMillis = finishedMillis;
-        if (row.reminderEnabled) {
-            row.nextReminderAtMillis = finishedMillis + cadenceMillis(context);
-        } else {
-            row.nextReminderAtMillis = 0L;
-        }
+        row.nextReminderAtMillis = row.reminderEnabled
+                ? finishedMillis + cadenceMillis(context) : 0L;
     }
 
     private static Map<String, MutableRole> load(Context context) {
         Map<String, MutableRole> rows = new HashMap<>();
         if (context == null) return rows;
-        String raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .getString(KEY_ROWS, "[]");
+        String raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_ROWS, "[]");
         try {
             JSONArray array = new JSONArray(raw == null ? "[]" : raw);
             for (int i = 0; i < array.length(); i++) {
@@ -242,9 +227,7 @@ final class IdleProcessState {
         long pendingEndMillis;
         long pendingEventId;
 
-        MutableRole(String key) {
-            this.key = clean(key);
-        }
+        MutableRole(String key) { this.key = clean(key); }
 
         IdleRole freeze() {
             return new IdleRole(key, project, role, topic, lastFinishedMillis, eventId,
