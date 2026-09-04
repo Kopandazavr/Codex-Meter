@@ -13,15 +13,38 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-/** Reads active GPT watchdogs from Android's locally synced Calendar Provider. */
+/** Reads GPT watchdogs from Android's locally synced Calendar Provider. */
 final class CalendarProcessReader {
-    private static final long LOOKBACK_MS = TimeUnit.HOURS.toMillis(2);
+    private static final long LOOKBACK_MS = TimeUnit.HOURS.toMillis(24);
     private static final long LOOKAHEAD_MS = TimeUnit.HOURS.toMillis(2);
 
     private CalendarProcessReader() {
     }
 
     static List<CalendarProcess> active(Context context, long nowMillis) {
+        List<CalendarProcess> all = query(context, nowMillis);
+        List<CalendarProcess> processes = new ArrayList<>();
+        for (CalendarProcess process : all) {
+            if (process.beginMillis <= nowMillis && process.endMillis > nowMillis) {
+                processes.add(process);
+            }
+        }
+        processes.sort(Comparator.comparingLong(process -> process.endMillis));
+        return processes;
+    }
+
+    static List<CalendarProcess> recentlyFinished(Context context, long nowMillis) {
+        List<CalendarProcess> all = query(context, nowMillis);
+        List<CalendarProcess> processes = new ArrayList<>();
+        for (CalendarProcess process : all) {
+            if (process.endMillis <= nowMillis) processes.add(process);
+        }
+        processes.sort(Comparator.comparingLong(
+                (CalendarProcess process) -> process.endMillis).reversed());
+        return processes;
+    }
+
+    private static List<CalendarProcess> query(Context context, long nowMillis) {
         List<CalendarProcess> processes = new ArrayList<>();
         if (context == null || context.checkSelfPermission(Manifest.permission.READ_CALENDAR)
                 != PackageManager.PERMISSION_GRANTED) {
@@ -52,7 +75,6 @@ final class CalendarProcessReader {
             while (cursor.moveToNext()) {
                 long begin = cursor.getLong(beginIndex);
                 long end = cursor.getLong(endIndex);
-                if (begin > nowMillis || end <= nowMillis) continue;
                 CalendarProcess process = CalendarProcess.fromEvent(
                         cursor.getLong(eventIdIndex),
                         cursor.getString(titleIndex),
@@ -66,7 +88,6 @@ final class CalendarProcessReader {
                     "error", exception.getClass().getSimpleName());
             processes.clear();
         }
-        processes.sort(Comparator.comparingLong(process -> process.endMillis));
         return processes;
     }
 }
