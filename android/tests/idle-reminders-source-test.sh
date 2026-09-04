@@ -31,4 +31,19 @@ grep -q 'SYSTEM_ALERT_WINDOW' "$ROOT/app/src/main/AndroidManifest.xml"
 # Reboot/package replacement restores local reminder scheduling.
 grep -q 'IdleReminderManager.restore(context)' "$SRC/BootReceiver.java"
 
-echo 'Idle reminder lifecycle/source regression contract passed.'
+# Current phone-acceptance follow-ups stay source-guarded in the same iteration.
+grep -q 'View flexibleTop = new View(this)' "$SRC/OnboardingActivity.java"
+grep -q 'new LinearLayout.LayoutParams(-1, 0, 1.0f)' "$SRC/OnboardingActivity.java"
+grep -q 'STATUS_YELLOW = 0xFFFFC107' "$SRC/OnboardingActivity.java"
+grep -q 'setMatchingTextColor' "$SRC/OnboardingActivity.java"
+grep -q 'hasExplicitStyle' "$SRC/ResetAlertPreferences.java"
+grep -q 'ensureNotificationFeatureDefault' "$SRC/OnboardingActivity.java"
+test -f "$SRC/HomeVersionLabel.java"
+grep -q 'Ui.versionName(activity)' "$SRC/HomeVersionLabel.java"
+grep -q 'RelativeSizeSpan' "$SRC/HomeVersionLabel.java"
+grep -q 'HomeVersionLabel.apply(activity)' "$SRC/CodexMeterApplication.java"
+grep -q 'normalizeAutomaticDefaults' "$SRC/CodexMeterApplication.java"
+grep -q 'dashboard_reorder_root' "$ROOT/app/src/main/res/xml/preferences_settings.xml"
+grep -q 'app:isPreferenceVisible="false"' "$ROOT/app/src/main/res/xml/preferences_settings.xml"
+
+echo 'Idle reminder + phone follow-up source regression contract passed.'
