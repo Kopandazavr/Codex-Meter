@@ -15,6 +15,7 @@ import android.widget.RemoteViews;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -55,6 +56,8 @@ final class DualUsageNotificationManager {
         UsageWindow paceWindow = NowBarPercentMode.selectWindow(focus, fiveHour, longWindow);
         String fiveResetTime = formatResetTime(fiveHour, observedAt);
         String longResetTime = formatResetTime(longWindow, observedAt);
+        String processMode = ProcessNotificationMode.current(context);
+        List<CalendarProcess> processes = CalendarProcessReader.active(context, now);
 
         try {
             SubscriptionStore.seedFromJwt(context, SecureTokenStore.load(context), now);
@@ -79,10 +82,12 @@ final class DualUsageNotificationManager {
 
         Icon stopIcon = Icon.createWithResource(context, R.drawable.ic_notification);
         Icon refreshIcon = Icon.createWithResource(context, R.drawable.ic_refresh);
-        RemoteViews compact = buildViews(context, fiveHour, longWindow, longLabel,
-                observedAt, now, planText, fiveResetTime, longResetTime);
-        RemoteViews expanded = buildViews(context, fiveHour, longWindow, longLabel,
-                observedAt, now, planText, fiveResetTime, longResetTime);
+        RemoteViews compact = buildViews(context, R.layout.notification_usage_dual_bars,
+                fiveHour, longWindow, longLabel, observedAt, now, planText,
+                fiveResetTime, longResetTime, null, processMode);
+        RemoteViews expanded = buildViews(context, R.layout.notification_usage_dual_bars_expanded,
+                fiveHour, longWindow, longLabel, observedAt, now, planText,
+                fiveResetTime, longResetTime, processes, processMode);
 
         String fiveText = NowBarCopy.limitText("5-hour", fiveHour, observedAt, now);
         String longText = NowBarCopy.limitText(longLabel, longWindow, observedAt, now);
@@ -123,12 +128,15 @@ final class DualUsageNotificationManager {
         if (manager == null) return false;
         try {
             manager.notify(NOTIFICATION_ID, builder.build());
+            ProcessNotificationManager.sync(context, processes, processMode, now);
             DiagnosticLog.info(context, "now_bar", "dual_notification_posted",
                     "five_hour", fiveHour != null,
                     "long_window", longWindow != null,
                     "plan_expiry", subscription != null && subscription.activeUntilMillis > 0L,
                     "five_hour_reset", fiveHour != null && !fiveResetTime.isEmpty(),
-                    "long_reset", longWindow != null && !longResetTime.isEmpty());
+                    "long_reset", longWindow != null && !longResetTime.isEmpty(),
+                    "process_count", processes.size(),
+                    "process_mode", processMode);
             return true;
         } catch (RuntimeException exception) {
             DiagnosticLog.error(context, "now_bar", "dual_notification_post_failed", exception);
@@ -137,7 +145,11 @@ final class DualUsageNotificationManager {
     }
 
     static boolean repostFromCache(Context context) {
-        if (context == null || !NowBarManager.isActive(context)) return false;
+        if (context == null) return false;
+        if (!NowBarManager.isActive(context)) {
+            ProcessNotificationManager.clearAll(context);
+            return false;
+        }
         UsageSnapshot snapshot = AppPreferences.loadSnapshot(context);
         return snapshot != null && postFromSnapshot(context, snapshot);
     }
@@ -149,11 +161,11 @@ final class DualUsageNotificationManager {
                 () -> repostFromCache(app), Math.max(0L, delayMillis));
     }
 
-    private static RemoteViews buildViews(Context context, UsageWindow fiveHour,
-            UsageWindow longWindow, String longLabel, long observedAt, long now,
-            String planText, String fiveResetTime, String longResetTime) {
-        RemoteViews views = new RemoteViews(context.getPackageName(),
-                R.layout.notification_usage_dual_bars);
+    private static RemoteViews buildViews(Context context, int layoutId,
+            UsageWindow fiveHour, UsageWindow longWindow, String longLabel,
+            long observedAt, long now, String planText, String fiveResetTime,
+            String longResetTime, List<CalendarProcess> processes, String processMode) {
+        RemoteViews views = new RemoteViews(context.getPackageName(), layoutId);
         int textColor = (context.getResources().getConfiguration().uiMode
                 & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
                 ? Color.WHITE : Color.rgb(32, 33, 36);
@@ -188,6 +200,18 @@ final class DualUsageNotificationManager {
             views.setTextColor(R.id.notification_long_text, textColor);
             views.setProgressBar(R.id.notification_long_progress, 100,
                     longWindow.remainingPercent(), false);
+        }
+
+        if (layoutId == R.layout.notification_usage_dual_bars_expanded) {
+            boolean showProcesses = ProcessNotificationMode.COMBINED.equals(processMode)
+                    && processes != null && !processes.isEmpty();
+            views.setViewVisibility(R.id.notification_process_section,
+                    showProcesses ? View.VISIBLE : View.GONE);
+            if (showProcesses) {
+                views.setTextColor(R.id.notification_process_section_title, textColor);
+                ProcessNotificationManager.addRows(context, views,
+                        R.id.notification_process_container, processes, now);
+            }
         }
         return views;
     }
