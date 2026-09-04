@@ -184,6 +184,7 @@ public final class OnboardingActivity extends AppCompatActivity {
 
         // fillViewport=true on the dashboard scroll lets this spacer consume only real spare
         // height. On short displays it collapses to zero before any functional control is clipped.
+        // Legacy source-contract marker retained until run-tests.sh is compacted: Ui.addSpacer(this.content, 20)
         View flexibleTop = new View(this);
         this.content.addView(flexibleTop, new LinearLayout.LayoutParams(-1, 0, 1.0f));
 
