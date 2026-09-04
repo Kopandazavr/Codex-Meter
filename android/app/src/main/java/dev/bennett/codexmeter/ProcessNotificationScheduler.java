@@ -51,8 +51,7 @@ final class ProcessNotificationScheduler {
     }
 
     private static PendingIntent pendingIntent(Context context) {
-        Intent intent = new Intent(context, ProcessNotificationRefreshReceiver.class)
-                .setAction(ACTION_REFRESH);
+        Intent intent = new Intent(context, NowBarActionReceiver.class).setAction(ACTION_REFRESH);
         return PendingIntent.getBroadcast(context, REQUEST_REFRESH, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
