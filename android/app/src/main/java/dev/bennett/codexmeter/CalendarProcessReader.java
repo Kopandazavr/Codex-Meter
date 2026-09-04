@@ -60,7 +60,7 @@ final class CalendarProcessReader {
                         end);
                 if (process != null) processes.add(process);
             }
-        } catch (SecurityException | RuntimeException exception) {
+        } catch (RuntimeException exception) {
             DiagnosticLog.warn(context, "calendar_process", "read_failed",
                     "error", exception.getClass().getSimpleName());
             processes.clear();
