@@ -220,6 +220,7 @@ public final class OnboardingActivity extends AppCompatActivity {
         doneParams.setMargins(0, Ui.dp(this, 22), 0, Ui.dp(this, 8));
         this.content.addView(done, doneParams);
 
+        Ui.addSpacer(this.content, 20);
         TextView more = Ui.text(this,
                 "Widgets, alerts, usage history and detailed display options remain available "
                         + "inside the app when you want them.",
