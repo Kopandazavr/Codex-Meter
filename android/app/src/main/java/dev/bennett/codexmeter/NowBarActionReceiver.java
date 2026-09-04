@@ -12,11 +12,20 @@ public final class NowBarActionReceiver extends BroadcastReceiver {
         if (NowBarManager.ACTION_STOP.equals(action)) {
             NowBarManager.stop(context, true);
             ProcessNotificationManager.clearAll(context);
+            ProcessNotificationScheduler.cancel(context);
         } else if (NowBarManager.ACTION_END.equals(action)) {
             NowBarManager.onScheduledEnd(context);
             DualUsageNotificationManager.repostDelayed(context, 450L);
         } else if (NowBarManager.ACTION_REFRESH.equals(action)) {
             RefreshScheduler.scheduleImmediate(context);
+        } else if (ProcessNotificationScheduler.ACTION_REFRESH.equals(action)) {
+            if (!NowBarManager.isActive(context)) {
+                ProcessNotificationScheduler.cancel(context);
+                ProcessNotificationManager.clearAll(context);
+            } else {
+                DualUsageNotificationManager.repostFromCache(context);
+                ProcessNotificationScheduler.schedule(context);
+            }
         } else if (NowBarManager.ACTION_DISMISSED.equals(action)) {
             // The framework can still send deleteIntent when SystemUI clears/rebuilds the card.
             // Let NowBarManager repair its state first, then make our compact card the last post.
