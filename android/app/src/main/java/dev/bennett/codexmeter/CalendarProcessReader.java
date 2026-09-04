@@ -27,6 +27,7 @@ final class CalendarProcessReader {
                 != PackageManager.PERMISSION_GRANTED) {
             return processes;
         }
+        ProcessNotificationScheduler.schedule(context);
 
         Uri.Builder builder = CalendarContract.Instances.CONTENT_URI.buildUpon();
         ContentUris.appendId(builder, Math.max(0L, nowMillis - LOOKBACK_MS));
