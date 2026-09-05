@@ -32,8 +32,10 @@
         <dev.oneuiproject.oneui.preference.HorizontalRadioPreference
             android:defaultValue="combined"
             android:key="process_notification_mode_ui"
+            android:title="Process notifications"
             app:entries="@array/process_notification_mode_entries"
-            app:entryValues="@array/process_notification_mode_values" />
+            app:entryValues="@array/process_notification_mode_values"
+            app:viewType="noImage" />
         <Preference
             android:key="calendar_process_access"
             android:summary="Allow local synced GPT watchdogs to appear in notifications"
