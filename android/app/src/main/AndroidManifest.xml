@@ -10,9 +10,13 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.READ_CALENDAR"/>
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+    <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <application
         android:name="dev.bennett.codexmeter.CodexMeterApplication"
@@ -37,267 +41,108 @@
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data
-                    android:scheme="codexmeter"
-                    android:host="auth"
-                    android:pathPrefix="/complete"/>
+                <data android:scheme="codexmeter" android:host="auth" android:pathPrefix="/complete"/>
             </intent-filter>
         </activity>
-        <activity
-            android:name="dev.bennett.codexmeter.OnboardingActivity"
-            android:exported="false"
-            android:launchMode="singleTop"/>
-        <activity
-            android:name="dev.bennett.codexmeter.SettingsActivity"
-            android:exported="false"/>
-        <activity
-            android:name="dev.bennett.codexmeter.UpdateActivity"
-            android:configChanges="orientation|screenSize"
-            android:exported="false"/>
-        <activity
-            android:name="dev.bennett.codexmeter.ReleaseHistoryActivity"
-            android:exported="false"/>
-        <activity
-            android:name="dev.bennett.codexmeter.UsageHistoryActivity"
-            android:exported="false"/>
-        <activity
-            android:name="dev.bennett.codexmeter.DashboardReorderActivity"
-            android:exported="false"/>
-        <activity
-            android:name="dev.bennett.codexmeter.AboutActivity"
-            android:exported="false"/>
-        <activity
-            android:name="dev.bennett.codexmeter.ResetCreditActivity"
-            android:exported="false"
-            android:launchMode="singleTop"
-            android:excludeFromRecents="true"/>
-        <activity
-            android:theme="@style/AppTheme"
-            android:name="dev.bennett.codexmeter.WidgetConfigActivity"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE"/>
-            </intent-filter>
+        <activity android:name="dev.bennett.codexmeter.OnboardingActivity" android:exported="false" android:launchMode="singleTop"/>
+        <activity android:name="dev.bennett.codexmeter.SettingsActivity" android:exported="false"/>
+        <activity android:name="dev.bennett.codexmeter.CalendarPermissionActivity" android:exported="false"/>
+        <activity android:name="dev.bennett.codexmeter.UpdateActivity" android:configChanges="orientation|screenSize" android:exported="false"/>
+        <activity android:name="dev.bennett.codexmeter.ReleaseHistoryActivity" android:exported="false"/>
+        <activity android:name="dev.bennett.codexmeter.UsageHistoryActivity" android:exported="false"/>
+        <activity android:name="dev.bennett.codexmeter.DashboardReorderActivity" android:exported="false"/>
+        <activity android:name="dev.bennett.codexmeter.AboutActivity" android:exported="false"/>
+        <activity android:name="dev.bennett.codexmeter.ResetCreditActivity" android:exported="false" android:launchMode="singleTop" android:excludeFromRecents="true"/>
+        <activity android:theme="@style/AppTheme" android:name="dev.bennett.codexmeter.WidgetConfigActivity" android:exported="true">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_CONFIGURE"/></intent-filter>
         </activity>
-        <activity
-            android:theme="@style/AppTheme"
-            android:name="dev.bennett.codexmeter.LockWidgetConfigActivity"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE"/>
-            </intent-filter>
+        <activity android:theme="@style/AppTheme" android:name="dev.bennett.codexmeter.LockWidgetConfigActivity" android:exported="true">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_CONFIGURE"/></intent-filter>
         </activity>
-        <receiver
-            android:label="@string/widget_name"
-            android:name="dev.bennett.codexmeter.CodexUsageWidget"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/codex_widget_info"/>
-            <meta-data
-                android:name="com.sec.android.appwidget.widgetinfo"
-                android:resource="@xml/widget_supported_cell_size_info"/>
+        <receiver android:label="@string/widget_name" android:name="dev.bennett.codexmeter.CodexUsageWidget" android:exported="true">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/codex_widget_info"/>
+            <meta-data android:name="com.sec.android.appwidget.widgetinfo" android:resource="@xml/widget_supported_cell_size_info"/>
         </receiver>
-        <receiver
-            android:label="@string/lock_widget_square_name"
-            android:name="dev.bennett.codexmeter.SamsungLockSquareWidget"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/samsung_lock_square_info"/>
-            <meta-data
-                android:name="samsung.appwidget.monotone.info"
-                android:resource="@xml/samsung_lock_square_oneui_info"/>
+        <receiver android:label="@string/lock_widget_square_name" android:name="dev.bennett.codexmeter.SamsungLockSquareWidget" android:exported="true">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/samsung_lock_square_info"/>
+            <meta-data android:name="samsung.appwidget.monotone.info" android:resource="@xml/samsung_lock_square_oneui_info"/>
         </receiver>
-        <receiver
-            android:label="@string/lock_widget_wide_name"
-            android:name="dev.bennett.codexmeter.SamsungLockWideWidget"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/samsung_lock_wide_info"/>
-            <meta-data
-                android:name="samsung.appwidget.monotone.info"
-                android:resource="@xml/samsung_lock_wide_oneui_info"/>
+        <receiver android:label="@string/lock_widget_wide_name" android:name="dev.bennett.codexmeter.SamsungLockWideWidget" android:exported="true">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/samsung_lock_wide_info"/>
+            <meta-data android:name="samsung.appwidget.monotone.info" android:resource="@xml/samsung_lock_wide_oneui_info"/>
         </receiver>
-        <receiver
-            android:label="@string/lock_widget_rings_square_name"
-            android:name="dev.bennett.codexmeter.SamsungLockRingsSquareWidget"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/samsung_lock_rings_square_info"/>
-            <meta-data
-                android:name="samsung.appwidget.monotone.info"
-                android:resource="@xml/samsung_lock_rings_square_oneui_info"/>
+        <receiver android:label="@string/lock_widget_rings_square_name" android:name="dev.bennett.codexmeter.SamsungLockRingsSquareWidget" android:exported="true">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/samsung_lock_rings_square_info"/>
+            <meta-data android:name="samsung.appwidget.monotone.info" android:resource="@xml/samsung_lock_rings_square_oneui_info"/>
         </receiver>
-        <receiver
-            android:label="@string/lock_widget_rings_wide_name"
-            android:name="dev.bennett.codexmeter.SamsungLockRingsWideWidget"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/samsung_lock_rings_wide_info"/>
-            <meta-data
-                android:name="samsung.appwidget.monotone.info"
-                android:resource="@xml/samsung_lock_rings_wide_oneui_info"/>
+        <receiver android:label="@string/lock_widget_rings_wide_name" android:name="dev.bennett.codexmeter.SamsungLockRingsWideWidget" android:exported="true">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/samsung_lock_rings_wide_info"/>
+            <meta-data android:name="samsung.appwidget.monotone.info" android:resource="@xml/samsung_lock_rings_wide_oneui_info"/>
         </receiver>
-        <receiver
-            android:label="@string/lock_widget_dials_square_name"
-            android:name="dev.bennett.codexmeter.SamsungLockDialsSquareWidget"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/samsung_lock_dials_square_info"/>
-            <meta-data
-                android:name="samsung.appwidget.monotone.info"
-                android:resource="@xml/samsung_lock_dials_square_oneui_info"/>
+        <receiver android:label="@string/lock_widget_dials_square_name" android:name="dev.bennett.codexmeter.SamsungLockDialsSquareWidget" android:exported="true">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/samsung_lock_dials_square_info"/>
+            <meta-data android:name="samsung.appwidget.monotone.info" android:resource="@xml/samsung_lock_dials_square_oneui_info"/>
         </receiver>
-        <receiver
-            android:label="@string/lock_widget_dials_wide_name"
-            android:name="dev.bennett.codexmeter.SamsungLockDialsWideWidget"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/samsung_lock_dials_wide_info"/>
-            <meta-data
-                android:name="samsung.appwidget.monotone.info"
-                android:resource="@xml/samsung_lock_dials_wide_oneui_info"/>
+        <receiver android:label="@string/lock_widget_dials_wide_name" android:name="dev.bennett.codexmeter.SamsungLockDialsWideWidget" android:exported="true">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/samsung_lock_dials_wide_info"/>
+            <meta-data android:name="samsung.appwidget.monotone.info" android:resource="@xml/samsung_lock_dials_wide_oneui_info"/>
         </receiver>
-        <receiver
-            android:label="@string/lock_widget_bars_square_name"
-            android:name="dev.bennett.codexmeter.SamsungLockBarsSquareWidget"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/samsung_lock_bars_square_info"/>
-            <meta-data
-                android:name="samsung.appwidget.monotone.info"
-                android:resource="@xml/samsung_lock_bars_square_oneui_info"/>
+        <receiver android:label="@string/lock_widget_bars_square_name" android:name="dev.bennett.codexmeter.SamsungLockBarsSquareWidget" android:exported="true">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/samsung_lock_bars_square_info"/>
+            <meta-data android:name="samsung.appwidget.monotone.info" android:resource="@xml/samsung_lock_bars_square_oneui_info"/>
         </receiver>
-        <receiver
-            android:label="@string/lock_widget_bars_wide_name"
-            android:name="dev.bennett.codexmeter.SamsungLockBarsWideWidget"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/samsung_lock_bars_wide_info"/>
-            <meta-data
-                android:name="samsung.appwidget.monotone.info"
-                android:resource="@xml/samsung_lock_bars_wide_oneui_info"/>
+        <receiver android:label="@string/lock_widget_bars_wide_name" android:name="dev.bennett.codexmeter.SamsungLockBarsWideWidget" android:exported="true">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/samsung_lock_bars_wide_info"/>
+            <meta-data android:name="samsung.appwidget.monotone.info" android:resource="@xml/samsung_lock_bars_wide_oneui_info"/>
         </receiver>
-        <receiver
-            android:label="@string/lock_widget_five_hour_name"
-            android:name="dev.bennett.codexmeter.SamsungLockFiveHourWidget"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/samsung_lock_five_hour_info"/>
-            <meta-data
-                android:name="samsung.appwidget.monotone.info"
-                android:resource="@xml/samsung_lock_five_hour_oneui_info"/>
+        <receiver android:label="@string/lock_widget_five_hour_name" android:name="dev.bennett.codexmeter.SamsungLockFiveHourWidget" android:exported="true">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/samsung_lock_five_hour_info"/>
+            <meta-data android:name="samsung.appwidget.monotone.info" android:resource="@xml/samsung_lock_five_hour_oneui_info"/>
         </receiver>
-        <receiver
-            android:label="@string/lock_widget_weekly_name"
-            android:name="dev.bennett.codexmeter.SamsungLockWeeklyWidget"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/samsung_lock_weekly_info"/>
-            <meta-data
-                android:name="samsung.appwidget.monotone.info"
-                android:resource="@xml/samsung_lock_weekly_oneui_info"/>
+        <receiver android:label="@string/lock_widget_weekly_name" android:name="dev.bennett.codexmeter.SamsungLockWeeklyWidget" android:exported="true">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/samsung_lock_weekly_info"/>
+            <meta-data android:name="samsung.appwidget.monotone.info" android:resource="@xml/samsung_lock_weekly_oneui_info"/>
         </receiver>
-        <receiver
-            android:name="dev.bennett.codexmeter.SamsungLockServiceBoxReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="com.samsung.android.intent.action.REQUEST_SERVICEBOX_REMOTEVIEWS"/>
-            </intent-filter>
+        <receiver android:name="dev.bennett.codexmeter.SamsungLockServiceBoxReceiver" android:exported="true">
+            <intent-filter><action android:name="com.samsung.android.intent.action.REQUEST_SERVICEBOX_REMOTEVIEWS"/></intent-filter>
         </receiver>
-        <receiver
-            android:name="dev.bennett.codexmeter.WidgetRefreshReceiver"
-            android:exported="false"/>
-        <receiver
-            android:name="dev.bennett.codexmeter.ResetAlertReceiver"
-            android:exported="false"/>
-        <receiver
-            android:name="dev.bennett.codexmeter.UpdateInstallReceiver"
-            android:exported="false"/>
-        <receiver
-            android:name="dev.bennett.codexmeter.ResetCreditExpiryReceiver"
-            android:exported="false"/>
-        <receiver
-            android:name="dev.bennett.codexmeter.NowBarActionReceiver"
-            android:exported="false"/>
-        <receiver
-            android:name="dev.bennett.codexmeter.BootReceiver"
-            android:exported="false"
-            android:directBootAware="false">
+        <receiver android:name="dev.bennett.codexmeter.WidgetRefreshReceiver" android:exported="false"/>
+        <receiver android:name="dev.bennett.codexmeter.ResetAlertReceiver" android:exported="false"/>
+        <receiver android:name="dev.bennett.codexmeter.UpdateInstallReceiver" android:exported="false"/>
+        <receiver android:name="dev.bennett.codexmeter.ResetCreditExpiryReceiver" android:exported="false"/>
+        <receiver android:name="dev.bennett.codexmeter.NowBarActionReceiver" android:exported="false"/>
+        <receiver android:name="dev.bennett.codexmeter.BootReceiver" android:exported="false" android:directBootAware="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
             </intent-filter>
         </receiver>
-        <meta-data
-            android:name="SamsungBasicInteraction"
-            android:value="SEP10"/>
-        <meta-data
-            android:name="com.samsung.android.support.ongoing_activity"
-            android:value="true"/>
+        <meta-data android:name="SamsungBasicInteraction" android:value="SEP10"/>
+        <meta-data android:name="com.samsung.android.support.ongoing_activity" android:value="true"/>
+        <service android:name="dev.bennett.codexmeter.UsageRefreshJobService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false"/>
+        <service android:name="dev.bennett.codexmeter.ReleaseUpdateJobService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false"/>
+        <service android:name="dev.bennett.codexmeter.WidgetRepairJobService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false"/>
+        <service android:name="dev.bennett.codexmeter.OAuthService" android:exported="false" android:stopWithTask="false" android:foregroundServiceType="dataSync"/>
         <service
-            android:name="dev.bennett.codexmeter.UsageRefreshJobService"
-            android:permission="android.permission.BIND_JOB_SERVICE"
-            android:exported="false"/>
-        <service
-            android:name="dev.bennett.codexmeter.ReleaseUpdateJobService"
-            android:permission="android.permission.BIND_JOB_SERVICE"
-            android:exported="false"/>
-        <service
-            android:name="dev.bennett.codexmeter.WidgetRepairJobService"
-            android:permission="android.permission.BIND_JOB_SERVICE"
-            android:exported="false"/>
-        <service
-            android:name="dev.bennett.codexmeter.OAuthService"
+            android:name="dev.bennett.codexmeter.IdleReminderOverlayService"
             android:exported="false"
-            android:stopWithTask="false"
-            android:foregroundServiceType="dataSync"/>
-        <service
-            android:name="dev.bennett.codexmeter.wear.PhoneWearListenerService"
-            android:exported="true">
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Temporary user-visible idle reminder bell overlay" />
+        </service>
+        <service android:name="dev.bennett.codexmeter.wear.PhoneWearListenerService" android:exported="true">
             <intent-filter>
                 <action
                     android:name="com.google.android.gms.wearable.BIND_LISTENER"
@@ -305,17 +150,11 @@
             </intent-filter>
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.DATA_CHANGED"/>
-                <data
-                    android:scheme="wear"
-                    android:host="*"
-                    android:pathPrefix="/codex"/>
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/codex"/>
             </intent-filter>
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED"/>
-                <data
-                    android:scheme="wear"
-                    android:host="*"
-                    android:pathPrefix="/codex/msg"/>
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/codex/msg"/>
             </intent-filter>
         </service>
     </application>

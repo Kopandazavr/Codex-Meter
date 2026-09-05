@@ -5,16 +5,29 @@ import android.app.Application;
 import android.content.ComponentCallbacks2;
 import android.os.Bundle;
 
-/** Installs opt-in process and screen lifecycle diagnostics without touching normal app data. */
+/** Installs process/screen diagnostics and enforces the small app's canonical automatic defaults. */
 public final class CodexMeterApplication extends Application
         implements Application.ActivityLifecycleCallbacks {
     @Override
     public void onCreate() {
         super.onCreate();
+        normalizeAutomaticDefaults();
         DiagnosticLog.install(this);
         registerActivityLifecycleCallbacks(this);
         DiagnosticLog.info(this, "process", "application_started");
         DualUsageNotificationManager.repostDelayed(this, 350L);
+    }
+
+    private void normalizeAutomaticDefaults() {
+        if (!AppPreferences.getRefreshOnLaunch(this)) {
+            AppPreferences.setRefreshOnLaunch(this, true);
+        }
+        if (!AppPreferences.getAutomaticRefresh(this)) {
+            AppPreferences.setAutomaticRefresh(this, true);
+        }
+        if (!UsagePacePreferences.isEnabled(this)) {
+            UsagePacePreferences.setEnabled(this, true);
+        }
     }
 
     @Override
@@ -41,6 +54,7 @@ public final class CodexMeterApplication extends Application
     public void onActivityResumed(Activity activity) {
         DiagnosticLog.info(this, "screen", "resumed",
                 "activity", activity.getClass().getSimpleName());
+        HomeVersionLabel.apply(activity);
         // Settings can start the native monitor from cached usage without a network refresh.
         // Re-assert the compact shade presentation whenever the user returns to a screen.
         DualUsageNotificationManager.repostDelayed(this, 200L);

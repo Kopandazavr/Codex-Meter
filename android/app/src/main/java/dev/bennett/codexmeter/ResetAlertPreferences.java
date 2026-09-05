@@ -41,6 +41,11 @@ public final class ResetAlertPreferences {
         return (STYLE_SILENT.equals(string) || STYLE_NOTIFICATION.equals(string) || STYLE_ALARM.equals(string)) ? string : STYLE_OFF;
     }
 
+    /** Distinguishes a real user choice (including explicit OFF) from the untouched default. */
+    public static boolean hasExplicitStyle(Context context) {
+        return prefs(context).contains(KEY_STYLE);
+    }
+
     public static String getMetric(Context context) {
         String string = prefs(context).getString(KEY_METRIC, "both");
         return ("five_hour".equals(string) || "weekly".equals(string)) ? string : "both";
