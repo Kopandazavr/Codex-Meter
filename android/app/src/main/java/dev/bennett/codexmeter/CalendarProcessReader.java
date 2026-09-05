@@ -44,6 +44,29 @@ final class CalendarProcessReader {
         return processes;
     }
 
+    /**
+     * Returns false only when the Calendar Provider can definitively confirm that a previously
+     * observed watchdog event no longer exists. Permission/read failures are treated as unknown
+     * (true) so a transient provider problem cannot manufacture a false early completion.
+     */
+    static boolean eventExists(Context context, long eventId) {
+        if (context == null || eventId <= 0L) return true;
+        if (context.checkSelfPermission(Manifest.permission.READ_CALENDAR)
+                != PackageManager.PERMISSION_GRANTED) {
+            return true;
+        }
+        Uri eventUri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId);
+        try (Cursor cursor = context.getContentResolver().query(eventUri,
+                new String[]{CalendarContract.Events._ID}, null, null, null)) {
+            return cursor == null || cursor.moveToFirst();
+        } catch (RuntimeException exception) {
+            DiagnosticLog.warn(context, "calendar_process", "event_exists_read_failed",
+                    "event_id", eventId,
+                    "error", exception.getClass().getSimpleName());
+            return true;
+        }
+    }
+
     private static List<CalendarProcess> query(Context context, long nowMillis) {
         List<CalendarProcess> processes = new ArrayList<>();
         if (context == null || context.checkSelfPermission(Manifest.permission.READ_CALENDAR)
