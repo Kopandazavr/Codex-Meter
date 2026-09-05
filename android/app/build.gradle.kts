@@ -10,8 +10,8 @@ android {
         applicationId = "dev.bennett.codexmeter"
         minSdk = 26
         targetSdk = 36
-        versionCode = 30
-        versionName = "2.8.0"
+        versionCode = 31
+        versionName = "2.9.0"
         providers.gradleProperty("demoVersionCode").orNull?.toIntOrNull()?.let {
             versionCode = it
         }
@@ -19,7 +19,7 @@ android {
             versionName = it
         }
         val updateApiUrl = providers.gradleProperty("demoUpdateUrl").orNull
-            ?: "https://api.github.com/repos/BenItBuhner/Codex-Meter/releases?per_page=30" // pragma: allowlist secret
+            ?: "https://api.github.com/repos/Kopandazavr/Codex-Meter/releases?per_page=30" // pragma: allowlist secret
         buildConfigField("String", "UPDATE_API_URL",
             "\"${updateApiUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
     }
