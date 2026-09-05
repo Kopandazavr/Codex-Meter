@@ -9,6 +9,13 @@ grep -q 'IdleProcessState.synchronize' "$SRC/DualUsageNotificationManager.java"
 grep -q 'dismissedThroughMillis' "$SRC/IdleProcessState.java"
 grep -q 'row.reminderEnabled = !row.reminderEnabled' "$SRC/IdleProcessState.java"
 
+# Once an event has been observed as active, deleting it is an early completion rather than
+# waiting for the stale scheduled END. Provider failures remain fail-safe (not false completion).
+grep -q 'static boolean eventExists' "$SRC/CalendarProcessReader.java"
+grep -q 'CalendarContract.Events.CONTENT_URI' "$SRC/CalendarProcessReader.java"
+grep -q '!CalendarProcessReader.eventExists(context, row.pendingEventId)' "$SRC/IdleProcessState.java"
+grep -q 'watchdog_deleted_early' "$SRC/IdleProcessState.java"
+
 # Cadence stays intentionally bounded to the approved 5/10 minute choices.
 grep -q 'idle_reminder_cadence_entries' "$ROOT/app/src/main/res/values/settings_arrays.xml"
 grep -q '<item>5</item>' "$ROOT/app/src/main/res/values/settings_arrays.xml"
@@ -45,5 +52,11 @@ grep -q 'HomeVersionLabel.apply(activity)' "$SRC/CodexMeterApplication.java"
 grep -q 'normalizeAutomaticDefaults' "$SRC/CodexMeterApplication.java"
 grep -q 'dashboard_reorder_root' "$ROOT/app/src/main/res/xml/preferences_settings.xml"
 grep -q 'app:isPreferenceVisible="false"' "$ROOT/app/src/main/res/xml/preferences_settings.xml"
+
+# OneUI HorizontalRadioPreference needs an explicit title and view type at runtime; missing these
+# caused the Settings -> Now Bar page to fail during preference inflation on the target Samsung.
+NOW_BAR_XML="$ROOT/app/src/main/res/xml/preferences_settings_now_bar.xml"
+grep -q 'android:title="Process notifications"' "$NOW_BAR_XML"
+grep -q 'app:viewType="noImage"' "$NOW_BAR_XML"
 
 echo 'Idle reminder + phone follow-up source regression contract passed.'
