@@ -75,19 +75,21 @@ javac -encoding UTF-8 -cp "$JSON_JAR" -d "$OUT" \
 
 java -ea -cp "$OUT:$JSON_JAR" dev.bennett.codexmeter.ParserSelfTest
 
-# Source-level release checks.
-grep -q 'VERSION_NAME = "2.8.0"' "$ROOT/app/src/main/java/dev/bennett/codexmeter/AppConstants.java"
-grep -q 'VERSION_CODE = 30' "$ROOT/app/src/main/java/dev/bennett/codexmeter/AppConstants.java"
-grep -q 'versionName = "2.8.0"' "$ROOT/app/build.gradle.kts"
-grep -q 'versionCode = 30' "$ROOT/app/build.gradle.kts"
-grep -q 'versionName = "2.8.0"' "$ROOT/wear/build.gradle.kts"
-grep -q 'versionCode = 30' "$ROOT/wear/build.gradle.kts"
-grep -q 'codex-meter-android/2.8.0' "$ROOT/app/src/main/java/dev/bennett/codexmeter/AppConstants.java"
-grep -q 'VERSION_NAME="2.8.0"' "$ROOT/build.sh"
+# Source-level release checks. The app Gradle metadata is canonical for fork versioning;
+# AppConstants, Wear, and build artifact naming must stay aligned with it.
+APP_VERSION_NAME="$(awk -F'"' '/versionName = "/ { print $2; exit }' "$ROOT/app/build.gradle.kts")"
+APP_VERSION_CODE="$(awk '/versionCode = / { print $3; exit }' "$ROOT/app/build.gradle.kts")"
+[[ -n "$APP_VERSION_NAME" && -n "$APP_VERSION_CODE" ]]
+grep -q "VERSION_NAME = \"$APP_VERSION_NAME\"" "$ROOT/app/src/main/java/dev/bennett/codexmeter/AppConstants.java"
+grep -q "VERSION_CODE = $APP_VERSION_CODE" "$ROOT/app/src/main/java/dev/bennett/codexmeter/AppConstants.java"
+grep -q "versionName = \"$APP_VERSION_NAME\"" "$ROOT/wear/build.gradle.kts"
+grep -q "versionCode = $APP_VERSION_CODE" "$ROOT/wear/build.gradle.kts"
+grep -q 'return ORIGINATOR + "/" + VERSION_NAME' "$ROOT/app/src/main/java/dev/bennett/codexmeter/AppConstants.java"
+grep -q 'VERSION_NAME=.*app/build.gradle.kts' "$ROOT/build.sh"
 WORKFLOW="$ROOT/../.github/workflows/build-apk.yml"
 grep -Fq 'release-dist/CodexMeter-Wear-$VERSION_NAME.apk' "$WORKFLOW"
 grep -Fq '"platforms;android-37.0"' "$WORKFLOW"
-grep -q 'BenItBuhner/Codex-Meter/releases?per_page=30' "$ROOT/app/build.gradle.kts" # pragma: allowlist secret
+grep -q 'Kopandazavr/Codex-Meter/releases?per_page=30' "$ROOT/app/build.gradle.kts" # pragma: allowlist secret
 ! grep -R -q 'thatjoshguy67/Codex-Meter' \
   "$ROOT/app/src" "$ROOT/app/build.gradle.kts"
 
@@ -707,7 +709,7 @@ grep -q 'PATH_STATUS' \
   "$ROOT/shared/src/main/java/dev/bennett/codexmeter/wear/WearSyncPaths.java"
 grep -q 'clearSnapshot(context, state.updatedAtMillis' \
   "$ROOT/wear/src/main/java/dev/bennett/codexmeter/WearPhoneSync.java"
-! grep -Rq 'seedDemoSnapshot\\|demo_button\\|wear_load_demo' "$ROOT/wear/src/main"
+! grep -Rq 'seedDemoSnapshot\|demo_button\|wear_load_demo' "$ROOT/wear/src/main"
 grep -q 'android:icon="@mipmap/ic_launcher"' "$ROOT/wear/src/main/AndroidManifest.xml"
 for density in mdpi xhdpi xxhdpi xxxhdpi; do
   cmp "$ROOT/app/src/main/res/drawable-${density}/codex_meter_adaptive_bg.png" \
