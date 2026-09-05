@@ -83,13 +83,24 @@ final class IdleProcessState {
             }
         }
         for (MutableRole row : rows.values()) {
-            if (!activeKeys.contains(row.key) && row.pendingEndMillis > 0L
-                    && row.pendingEndMillis <= nowMillis) {
-                promoteFinished(row, row.project, row.role, row.topic,
-                        row.pendingEventId, row.pendingEndMillis, context);
-                row.pendingEndMillis = 0L;
-                row.pendingEventId = 0L;
+            if (activeKeys.contains(row.key) || row.pendingEndMillis <= 0L) continue;
+            boolean scheduledEndReached = row.pendingEndMillis <= nowMillis;
+            boolean watchedEventDeleted = !scheduledEndReached && row.pendingEventId > 0L
+                    && !CalendarProcessReader.eventExists(context, row.pendingEventId);
+            if (!scheduledEndReached && !watchedEventDeleted) continue;
+
+            long finishedAt = watchedEventDeleted ? nowMillis : row.pendingEndMillis;
+            promoteFinished(row, row.project, row.role, row.topic,
+                    row.pendingEventId, finishedAt, context);
+            if (watchedEventDeleted) {
+                DiagnosticLog.info(context, "idle_process", "watchdog_deleted_early",
+                        "event_id", row.pendingEventId,
+                        "role", row.role,
+                        "scheduled_end", row.pendingEndMillis,
+                        "finished_at", finishedAt);
             }
+            row.pendingEndMillis = 0L;
+            row.pendingEventId = 0L;
         }
         save(context, rows);
         List<IdleRole> visible = new ArrayList<>();
